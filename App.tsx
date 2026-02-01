@@ -1,5 +1,5 @@
 import React from "react";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts, Scheherazade_400Regular, Scheherazade_700Bold } from "@expo-google-fonts/scheherazade";
@@ -63,7 +63,9 @@ const App = () => {
       <SettingsProvider>
         <ReadingStateProvider>
           <SafeAreaProvider>
-            <Navigation />
+            <SafeAreaView style={{ flex: 1 }}>
+              <Navigation />
+            </SafeAreaView>
             <StatusBar style="auto" />
           </SafeAreaProvider>
         </ReadingStateProvider>

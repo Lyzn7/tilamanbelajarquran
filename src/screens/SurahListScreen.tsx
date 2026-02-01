@@ -8,6 +8,7 @@ import { queryKeys } from "@/api/queryKeys";
 import SurahCard from "@/components/SurahCard";
 import { useSettings } from "@/store/SettingsProvider";
 import { useReadingState } from "@/store/ReadingStateProvider";
+import { deleteDownloadByNumber, useDownloadManifest } from "@/hooks/useSurahDownload";
 import { lightColors, darkColors } from "@/theme";
 
 const SurahListScreen: React.FC = () => {
@@ -15,6 +16,7 @@ const SurahListScreen: React.FC = () => {
   const colors = isDark ? darkColors : lightColors;
   const navigation = useNavigation();
   const { lastRead } = useReadingState();
+  const { manifest } = useDownloadManifest();
   const [search, setSearch] = useState("");
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
@@ -105,6 +107,11 @@ const SurahListScreen: React.FC = () => {
           <SurahCard
             item={item}
             lastReadAyah={lastRead?.surah === item.nomor ? lastRead.ayah : undefined}
+            downloaded={Boolean(manifest[item.nomor]?.textCached || manifest[item.nomor]?.audio)}
+            onDelete={async () => {
+              await deleteDownloadByNumber(item.nomor);
+              await refetch();
+            }}
             onPress={() => navigation.navigate("SurahDetail" as never, { nomor: item.nomor } as never)}
           />
         )}

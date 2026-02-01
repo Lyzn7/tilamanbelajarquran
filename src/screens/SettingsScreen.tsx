@@ -60,6 +60,54 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
         <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Unduhan Otomatis</Text>
+          <View style={[styles.rowBetween, { marginTop: 10 }]}>
+            <Text style={[styles.label, { color: colors.text }]}>Auto unduh teks saat buka</Text>
+            <Switch
+              value={settings.autoDownloadText}
+              onValueChange={(v) => setSettings({ autoDownloadText: v })}
+              trackColor={{ true: colors.primary, false: colors.border }}
+            />
+          </View>
+          <View style={[styles.rowBetween, { marginTop: 10 }]}>
+            <Text style={[styles.label, { color: colors.text }]}>Auto unduh audio saat buka</Text>
+            <Switch
+              value={settings.autoDownloadAudio}
+              onValueChange={(v) => setSettings({ autoDownloadAudio: v })}
+              trackColor={{ true: colors.primary, false: colors.border }}
+            />
+          </View>
+          <View style={[styles.rowBetween, { marginTop: 10 }]}>
+            <Text style={[styles.label, { color: colors.text }]}>Unduh hanya via Wi‑Fi</Text>
+            <Switch
+              value={settings.wifiOnlyDownload}
+              onValueChange={(v) => setSettings({ wifiOnlyDownload: v })}
+              trackColor={{ true: colors.primary, false: colors.border }}
+            />
+          </View>
+          <View style={styles.row} >
+            {["full", "ayat"].map((mode) => (
+              <Pressable
+                key={mode}
+                onPress={() => setSettings({ audioDownloadMode: mode as "full" | "ayat" })}
+                style={[
+                  styles.pill,
+                  { backgroundColor: settings.audioDownloadMode === mode ? colors.primary : colors.badge }
+                ]}
+              >
+                <Text
+                  style={{
+                    color: settings.audioDownloadMode === mode ? "#0b1224" : colors.badgeText,
+                    fontWeight: "700"
+                  }}
+                >
+                  {mode === "full" ? "Audio full" : "Audio ayat"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
           <Text style={[styles.title, { color: colors.text }]}>Base URL API</Text>
           <Text style={{ color: colors.muted, marginTop: 4 }}>{process.env.EXPO_PUBLIC_BASE_URL}</Text>
         </View>

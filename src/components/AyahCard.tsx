@@ -95,7 +95,7 @@ const AyahCard: React.FC<Props> = ({
       <Text
         style={[
           styles.arab,
-          { color: colors.text, fontSize, lineHeight: fontSize + 12, fontFamily: "Scheherazade_700Bold" }
+          { color: colors.text, fontSize, lineHeight: fontSize + 12, fontFamily: "Scheherazade_700Bold", textAlign: "right" }
         ]}
       >
         {ayah.teksArab}

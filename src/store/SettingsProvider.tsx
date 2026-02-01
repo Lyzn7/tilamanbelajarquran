@@ -12,6 +12,10 @@ export interface SettingsState {
   qari: string;
   autoPlayNext: boolean;
   repeatAyah: boolean;
+  autoDownloadText: boolean;
+  autoDownloadAudio: boolean;
+  audioDownloadMode: "full" | "ayat";
+  wifiOnlyDownload: boolean;
 }
 
 const defaultSettings: SettingsState = {
@@ -20,7 +24,11 @@ const defaultSettings: SettingsState = {
   themeMode: "system",
   qari: "05", // Misyari Rasyid default
   autoPlayNext: false,
-  repeatAyah: false
+  repeatAyah: false,
+  autoDownloadText: true,
+  autoDownloadAudio: false,
+  audioDownloadMode: "full",
+  wifiOnlyDownload: false
 };
 
 interface SettingsContextValue {

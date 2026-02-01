@@ -9,14 +9,18 @@ interface Props {
   item: SurahSummary;
   onPress: () => void;
   lastReadAyah?: number;
+  downloaded?: boolean;
+  onDelete?: () => void;
 }
 
-const SurahCard: React.FC<Props> = ({ item, onPress, lastReadAyah }) => {
+const SurahCard: React.FC<Props> = ({ item, onPress, lastReadAyah, downloaded, onDelete }) => {
   const { isDark } = useSettings();
   const colors = isDark ? darkColors : lightColors;
+  const cardBg = downloaded ? "#bbf7d0" : colors.card;
+  const border = downloaded ? "#22c55e" : colors.border;
 
   return (
-    <Pressable style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={onPress}>
+    <Pressable style={[styles.card, { backgroundColor: cardBg, borderColor: border }]} onPress={onPress}>
       <View style={styles.header}>
         <View style={[styles.badge, { backgroundColor: colors.badge }]}>
           <Text style={[styles.badgeText, { color: colors.badgeText }]}>{item.nomor}</Text>
@@ -33,8 +37,21 @@ const SurahCard: React.FC<Props> = ({ item, onPress, lastReadAyah }) => {
               <Text style={[styles.progressText, { color: colors.badgeText }]}>Terakhir di ayat {lastReadAyah}</Text>
             </View>
           )}
+          {downloaded && (
+            <View style={[styles.progress, { backgroundColor: colors.badge }]}>
+              <Ionicons name="cloud-done-outline" color={colors.badgeText} size={14} />
+              <Text style={[styles.progressText, { color: colors.badgeText }]}>Tersimpan</Text>
+            </View>
+          )}
         </View>
-        <Text style={[styles.arab, { color: colors.text }]}>{item.nama}</Text>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={[styles.arab, { color: colors.text }]}>{item.nama}</Text>
+          {downloaded && onDelete && (
+            <Pressable style={styles.deleteBtn} onPress={onDelete}>
+              <Ionicons name="trash-outline" size={14} color="#ffffff" />
+            </Pressable>
+          )}
+        </View>
       </View>
       <View style={styles.footer}>
         <Ionicons name="play-circle-outline" color={colors.muted} size={18} />
@@ -70,7 +87,14 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start"
   },
   progressText: { fontSize: 12, fontWeight: "600" },
-  footer: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 }
+  footer: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+  deleteBtn: {
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: "#ef4444",
+    borderRadius: 8
+  }
 });
 
 export default SurahCard;

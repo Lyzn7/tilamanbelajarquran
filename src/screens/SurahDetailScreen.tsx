@@ -8,19 +8,22 @@ import {
   Text,
   View,
   Pressable,
-  Alert
+  Alert,
+  PanResponder,
+  ScrollView
 } from "react-native";
 import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio, AVPlaybackStatusSuccess } from "expo-av";
 import { useQuery } from "@tanstack/react-query";
-import { getSurahDetail, getTafsir } from "@/api/equran";
+import { getSurahDetail, getTafsir, getSurahList } from "@/api/equran";
 import { queryKeys } from "@/api/queryKeys";
 import AyahCard from "@/components/AyahCard";
 import FontSizeSlider from "@/components/FontSizeSlider";
 import ToggleTranslation from "@/components/ToggleTranslation";
 import { useSettings } from "@/store/SettingsProvider";
 import { useReadingState } from "@/store/ReadingStateProvider";
+import { useSurahDownload } from "@/hooks/useSurahDownload";
 import { lightColors, darkColors } from "@/theme";
 import { Ayah, SurahDetail, TafsirResponse } from "@/types/api";
 import { RootStackParamList } from "@/navigation";
@@ -43,11 +46,19 @@ const SurahDetailScreen: React.FC = () => {
   const { settings, setSettings, isDark } = useSettings();
   const { setLastRead } = useReadingState();
   const colors = isDark ? darkColors : lightColors;
+  const {
+    entry: downloadEntry,
+    cacheText,
+    downloadAudio,
+    downloading,
+    progress
+  } = useSurahDownload(nomor);
 
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playingAyah, setPlayingAyah] = useState<number | null>(null);
   const [playingMode, setPlayingMode] = useState<"ayah" | "full" | null>(null);
   const [showTafsir, setShowTafsir] = useState(false);
+  const panResponder = useRef(PanResponder.create({ onMoveShouldSetPanResponder: () => false }));
 
   const flatListRef = useRef<FlatList<Ayah>>(null);
 
@@ -61,6 +72,12 @@ const SurahDetailScreen: React.FC = () => {
     queryKey: queryKeys.tafsir(nomor),
     queryFn: () => getTafsir(nomor),
     enabled: showTafsir
+  });
+
+  const { data: surahList } = useQuery({
+    queryKey: queryKeys.surahList,
+    queryFn: getSurahList,
+    staleTime: 1000 * 60 * 10
   });
 
   const ayat = data?.ayat ?? [];
@@ -82,6 +99,39 @@ const SurahDetailScreen: React.FC = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (data && settings.autoDownloadText && !downloadEntry?.textCached) {
+      cacheText(data);
+    }
+  }, [data, settings.autoDownloadText, downloadEntry?.textCached, cacheText]);
+
+  useEffect(() => {
+    const auto = async () => {
+      if (!data) return;
+      if (settings.autoDownloadAudio && downloadEntry?.audio?.[settings.qari]?.[settings.audioDownloadMode] == null) {
+        await downloadAudio(settings.audioDownloadMode, settings.qari, data);
+      }
+    };
+    auto();
+  }, [data, settings.autoDownloadAudio, settings.audioDownloadMode, settings.qari, downloadEntry, downloadAudio]);
+
+  const goToSurah = (num: number) => {
+    navigation.replace("SurahDetail" as never, { nomor: num } as never);
+  };
+
+  useEffect(() => {
+    panResponder.current = PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 25 && Math.abs(gesture.dy) < 20,
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dx < -40 && data?.suratSelanjutnya) {
+          goToSurah(data.suratSelanjutnya.nomor);
+        } else if (gesture.dx > 40 && data?.suratSebelumnya && typeof data.suratSebelumnya !== "boolean") {
+          goToSurah(data.suratSebelumnya.nomor);
+        }
+      }
+    });
+  }, [data]);
 
   const onPlaybackStatusUpdate = (status: AVPlaybackStatusSuccess) => {
     if (!status.isLoaded) return;
@@ -154,8 +204,9 @@ const SurahDetailScreen: React.FC = () => {
 
   const renderHeader = () => {
     if (!data) return null;
+
     return (
-      <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 56 }]}>
         <View style={styles.headerRow}>
           <Text style={[styles.surahTitle, { color: colors.text }]}>
             {data.namaLatin} · {data.arti}
@@ -168,6 +219,35 @@ const SurahDetailScreen: React.FC = () => {
         <Text style={[styles.desc, { color: colors.muted }]} numberOfLines={3}>
           {stripHtml(data.deskripsi)}
         </Text>
+        <View style={[styles.downloadRow, { borderColor: colors.border }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              {downloadEntry?.textCached ? "Teks tersimpan" : "Teks belum tersimpan"}
+            </Text>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Audio {downloadEntry?.audio?.[settings.qari]?.full || downloadEntry?.audio?.[settings.qari]?.ayat ? "tersimpan" : "belum tersimpan"}
+            </Text>
+            {progress && <Text style={{ color: colors.primary, fontSize: 12 }}>Mengunduh: {progress}</Text>}
+          </View>
+          <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Pressable
+              style={[styles.controlBtn, { borderColor: colors.border }]}
+              onPress={() => downloadAudio("full", settings.qari, data)}
+              disabled={downloading}
+            >
+              <Ionicons name="download-outline" size={16} color={colors.text} />
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Audio penuh</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.controlBtn, { borderColor: colors.border }]}
+              onPress={() => downloadAudio("ayat", settings.qari, data)}
+              disabled={downloading}
+            >
+              <Ionicons name="download-outline" size={16} color={colors.text} />
+              <Text style={{ color: colors.text, fontWeight: "700" }}>Audio ayat</Text>
+            </Pressable>
+          </View>
+        </View>
         <View style={styles.qariRow}>
           <Text style={[styles.qariLabel, { color: colors.text }]}>Qari</Text>
           <View style={styles.qariPills}>
@@ -293,13 +373,48 @@ const SurahDetailScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]}>
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: colors.background }]}
+      {...(panResponder.current ? panResponder.current.panHandlers : {})}
+    >
+      <View style={[styles.navOverlay, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+          {(() => {
+            const prev = data?.suratSebelumnya && typeof data.suratSebelumnya !== "boolean" ? data.suratSebelumnya : null;
+            const current = data
+              ? { nomor: nomor, namaLatin: data.namaLatin }
+              : null;
+            const next = data?.suratSelanjutnya || null;
+            const list = [prev, current, next].filter(Boolean) as { nomor: number; namaLatin: string }[];
+            return list.map((s) => {
+              const active = s.nomor === nomor;
+              return (
+                <Pressable
+                  key={s.nomor}
+                  onPress={() => goToSurah(s.nomor)}
+                  style={[
+                    styles.navPill,
+                    {
+                      backgroundColor: active ? colors.primary : colors.badge,
+                      borderColor: colors.border
+                    }
+                  ]}
+                >
+                  <Text style={{ color: active ? "#0b1224" : colors.badgeText, fontWeight: "700", fontSize: 12 }}>
+                    {s.nomor}. {s.namaLatin}
+                  </Text>
+                </Pressable>
+              );
+            });
+          })()}
+        </ScrollView>
+      </View>
       <FlatList
         ref={flatListRef}
         data={ayat}
         keyExtractor={(item) => item.nomorAyat.toString()}
         renderItem={renderItem}
-        contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+        contentContainerStyle={{ padding: 16, paddingBottom: 48, paddingTop: 80 }}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
         onScrollBeginDrag={() => {
@@ -352,7 +467,25 @@ const styles = StyleSheet.create({
   toggleLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
   toggleRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   tafsirCard: { borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 16 },
-  sectionTitle: { fontSize: 17, fontWeight: "800", marginBottom: 8 }
+  sectionTitle: { fontSize: 17, fontWeight: "800", marginBottom: 8 },
+  navPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  navOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    zIndex: 10
+  },
+  downloadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    marginTop: 10
+  }
 });
 
 export default SurahDetailScreen;
