@@ -16,6 +16,11 @@ export interface SettingsState {
   autoDownloadAudio: boolean;
   audioDownloadMode: "full" | "ayat";
   wifiOnlyDownload: boolean;
+  startRamadanDate: string;
+  imsakAlarmEnabled: boolean;
+  maghribAlarmEnabled: boolean;
+  imsakOffsetMinutes: number;
+  maghribOffsetMinutes: number;
 }
 
 const defaultSettings: SettingsState = {
@@ -28,7 +33,12 @@ const defaultSettings: SettingsState = {
   autoDownloadText: true,
   autoDownloadAudio: false,
   audioDownloadMode: "full",
-  wifiOnlyDownload: false
+  wifiOnlyDownload: false,
+  startRamadanDate: "2026-02-18",
+  imsakAlarmEnabled: false,
+  maghribAlarmEnabled: false,
+  imsakOffsetMinutes: 0,
+  maghribOffsetMinutes: 0
 };
 
 interface SettingsContextValue {

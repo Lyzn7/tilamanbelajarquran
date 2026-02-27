@@ -1,5 +1,5 @@
 import React from "react";
-import { SafeAreaView, StyleSheet, Switch, Text, View, Pressable } from "react-native";
+import { SafeAreaView, StyleSheet, Switch, Text, View, Pressable, TextInput } from "react-native";
 import { useSettings, ThemeMode } from "@/store/SettingsProvider";
 import { lightColors, darkColors } from "@/theme";
 import FontSizeSlider from "@/components/FontSizeSlider";
@@ -108,6 +108,70 @@ const SettingsScreen: React.FC = () => {
           </View>
         </View>
         <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Ramadhan & Alarm</Text>
+          <View style={{ marginTop: 10, gap: 10 }}>
+            <View>
+              <Text style={[styles.label, { color: colors.text }]}>Tanggal mulai Ramadhan (YYYY-MM-DD)</Text>
+              <TextInput
+                value={settings.startRamadanDate}
+                onChangeText={(val) => setSettings({ startRamadanDate: val.trim() })}
+                placeholder="2026-02-18"
+                placeholderTextColor={colors.muted}
+                style={[
+                  styles.input,
+                  { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }
+                ]}
+              />
+              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
+                Hari ke-1 Ramadhan ditetapkan pada tanggal ini.
+              </Text>
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={[styles.label, { color: colors.text }]}>Alarm Imsak</Text>
+              <Switch
+                value={settings.imsakAlarmEnabled}
+                onValueChange={(v) => setSettings({ imsakAlarmEnabled: v })}
+                trackColor={{ true: colors.primary, false: colors.border }}
+              />
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={[styles.label, { color: colors.text }]}>Offset Imsak (menit, boleh negatif)</Text>
+              <TextInput
+                value={String(settings.imsakOffsetMinutes)}
+                onChangeText={(v) => setSettings({ imsakOffsetMinutes: parseInt(v || "0", 10) || 0 })}
+                keyboardType="numeric"
+                style={[
+                  styles.numberInput,
+                  { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }
+                ]}
+              />
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={[styles.label, { color: colors.text }]}>Alarm Maghrib</Text>
+              <Switch
+                value={settings.maghribAlarmEnabled}
+                onValueChange={(v) => setSettings({ maghribAlarmEnabled: v })}
+                trackColor={{ true: colors.primary, false: colors.border }}
+              />
+            </View>
+            <View style={styles.rowBetween}>
+              <Text style={[styles.label, { color: colors.text }]}>Offset Maghrib (menit, boleh negatif)</Text>
+              <TextInput
+                value={String(settings.maghribOffsetMinutes)}
+                onChangeText={(v) => setSettings({ maghribOffsetMinutes: parseInt(v || "0", 10) || 0 })}
+                keyboardType="numeric"
+                style={[
+                  styles.numberInput,
+                  { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }
+                ]}
+              />
+            </View>
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Alarm memakai notifikasi lokal Expo (best effort, bisa tidak se-akurat AlarmManager).
+            </Text>
+          </View>
+        </View>
+        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
           <Text style={[styles.title, { color: colors.text }]}>Base URL API</Text>
           <Text style={{ color: colors.muted, marginTop: 4 }}>{process.env.EXPO_PUBLIC_BASE_URL}</Text>
         </View>
@@ -129,7 +193,22 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: 8, marginTop: 10 },
   pill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  label: { fontSize: 15 }
+  label: { fontSize: 15 },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 6
+  },
+  numberInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    minWidth: 70,
+    textAlign: "right"
+  }
 });
 
 export default SettingsScreen;

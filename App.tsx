@@ -11,8 +11,10 @@ import { AppState, Platform } from "react-native";
 import Navigation from "./src/navigation";
 import { SettingsProvider } from "./src/store/SettingsProvider";
 import { ReadingStateProvider } from "./src/store/ReadingStateProvider";
+import { setupNotificationHandler } from "./src/notifications";
 
 SplashScreen.preventAutoHideAsync();
+setupNotificationHandler();
 
 const queryClient = new QueryClient({
   defaultOptions: {

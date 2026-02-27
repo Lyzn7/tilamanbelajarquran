@@ -1,12 +1,11 @@
-import React from "react";
-import { StyleSheet, Text, View, Pressable } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { Ayah } from "@/types/api";
-import { useSettings } from "@/store/SettingsProvider";
 import { useReadingState } from "@/store/ReadingStateProvider";
-import { lightColors, darkColors } from "@/theme";
+import { useSettings } from "@/store/SettingsProvider";
+import { darkColors, lightColors } from "@/theme";
+import { Ayah } from "@/types/api";
+import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import { Share } from "react-native";
+import React from "react";
+import { ActivityIndicator, Pressable, Share, StyleSheet, Text, View } from "react-native";
 
 interface Props {
   ayah: Ayah;
@@ -17,6 +16,7 @@ interface Props {
   showTranslation: boolean;
   isActive: boolean;
   isPlaying: boolean;
+  isLoading?: boolean;
   onPlay: () => void;
   onStop: () => void;
   onScrollTo?: () => void;
@@ -31,6 +31,7 @@ const AyahCard: React.FC<Props> = ({
   showTranslation,
   isActive,
   isPlaying,
+  isLoading = false,
   onPlay,
   onStop,
   onScrollTo
@@ -68,8 +69,8 @@ const AyahCard: React.FC<Props> = ({
       ]}
     >
       <View style={styles.header}>
-        <View style={[styles.number, { backgroundColor: colors.badge }]}>
-          <Text style={[styles.numberText, { color: colors.badgeText }]}>{ayah.nomorAyat}</Text>
+        <View style={[styles.number, { backgroundColor: isActive ? colors.primary : colors.badge }]}>
+          <Text style={[styles.numberText, { color: isActive ? "#FFFFFF" : colors.badgeText }]}>{ayah.nomorAyat}</Text>
         </View>
         <View style={styles.actions}>
           <Pressable onPress={bookmark} hitSlop={12}>
@@ -95,7 +96,7 @@ const AyahCard: React.FC<Props> = ({
       <Text
         style={[
           styles.arab,
-          { color: colors.text, fontSize, lineHeight: fontSize + 12, fontFamily: "Scheherazade_700Bold", textAlign: "right" }
+          { color: colors.text, fontSize, lineHeight: Math.round(fontSize * 1.8), fontFamily: "Scheherazade_700Bold", textAlign: "right" }
         ]}
       >
         {ayah.teksArab}
@@ -103,9 +104,17 @@ const AyahCard: React.FC<Props> = ({
       <Text style={[styles.latin, { color: colors.muted }]}>{ayah.teksLatin}</Text>
       {showTranslation && <Text style={[styles.translation, { color: colors.muted }]}>{ayah.teksIndonesia}</Text>}
       <View style={styles.footer}>
-        <Pressable onPress={isPlaying ? onStop : onPlay} style={styles.audioButton}>
-          <Ionicons name={isPlaying ? "pause" : "play"} size={18} color={colors.text} />
-          <Text style={[styles.audioText, { color: colors.text }]}>Audio {qari}</Text>
+        <Pressable onPress={isPlaying ? onStop : onPlay} disabled={isLoading} style={styles.audioButton}>
+          {isLoading
+            ? <ActivityIndicator size={18} color={colors.primary} />
+            : <Ionicons name={isPlaying ? "pause" : "play"} size={18} color={isActive ? colors.primary : colors.text} />}
+          <Text
+            style={[styles.audioText, { color: isActive ? colors.primary : colors.text }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {isLoading ? "Memuat..." : `Audio ${qari}`}
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -128,7 +137,7 @@ const styles = StyleSheet.create({
   translation: { fontSize: 14, marginTop: 8 },
   footer: { flexDirection: "row", alignItems: "center", marginTop: 10 },
   audioButton: { flexDirection: "row", alignItems: "center", gap: 8 },
-  audioText: { fontSize: 13, fontWeight: "600" }
+  audioText: { fontSize: 13, fontWeight: "600", flexShrink: 1 }
 });
 
 export default AyahCard;

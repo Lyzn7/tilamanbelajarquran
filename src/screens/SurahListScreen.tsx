@@ -16,7 +16,7 @@ const SurahListScreen: React.FC = () => {
   const colors = isDark ? darkColors : lightColors;
   const navigation = useNavigation();
   const { lastRead } = useReadingState();
-  const { manifest } = useDownloadManifest();
+  const { manifest, reload } = useDownloadManifest();
   const [search, setSearch] = useState("");
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
@@ -102,15 +102,24 @@ const SurahListScreen: React.FC = () => {
         data={filtered}
         keyExtractor={(item) => item.nomor.toString()}
         contentContainerStyle={{ padding: 16 }}
-        refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={async () => {
+              await Promise.all([refetch(), reload()]);
+            }}
+            tintColor={colors.primary}
+          />
+        }
         renderItem={({ item }) => (
           <SurahCard
             item={item}
             lastReadAyah={lastRead?.surah === item.nomor ? lastRead.ayah : undefined}
             downloaded={Boolean(manifest[item.nomor]?.textCached || manifest[item.nomor]?.audio)}
             onDelete={async () => {
-              await deleteDownloadByNumber(item.nomor);
-              await refetch();
+                await deleteDownloadByNumber(item.nomor);
+                await reload();
+                await refetch();
             }}
             onPress={() => navigation.navigate("SurahDetail" as never, { nomor: item.nomor } as never)}
           />

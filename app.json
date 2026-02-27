@@ -27,6 +27,7 @@
     "web": {
       "bundler": "metro"
     },
+    "plugins": ["expo-notifications"],
     "extra": {
       "eas": {
         "projectId": "tilamanbelajarquran-local"

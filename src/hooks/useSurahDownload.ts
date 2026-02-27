@@ -35,16 +35,16 @@ export const useDownloadManifest = () => {
   const [manifest, setManifest] = useState<Manifest>({});
   const [ready, setReady] = useState(false);
 
+  const load = async () => {
+    const raw = await AsyncStorage.getItem(STORAGE_KEYS.downloadManifest);
+    if (raw) setManifest(JSON.parse(raw));
+    else setManifest({});
+    setReady(true);
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEYS.downloadManifest);
-        if (raw) setManifest(JSON.parse(raw));
-      } finally {
-        setReady(true);
-      }
-    };
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const persist = async (next: Manifest) => {
@@ -60,7 +60,7 @@ export const useDownloadManifest = () => {
     await persist(next);
   };
 
-  return { manifest, ready, persist, remove };
+  return { manifest, ready, persist, remove, reload: load };
 };
 
 export const deleteDownloadByNumber = async (num: number) => {
@@ -70,6 +70,7 @@ export const deleteDownloadByNumber = async (num: number) => {
   await FileSystem.deleteAsync(`${FileSystem.documentDirectory}surahs/${num}`, { idempotent: true });
   await AsyncStorage.removeItem(SURAH_TEXT_KEY(num));
   await AsyncStorage.setItem(STORAGE_KEYS.downloadManifest, JSON.stringify(manifest));
+  return manifest;
 };
 
 export const useSurahDownload = (nomor: number, data?: SurahDetail) => {

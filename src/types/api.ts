@@ -55,3 +55,37 @@ export interface ApiResponse<T> {
   message: string;
   data: T;
 }
+
+export interface ImsakDay {
+  tanggal: number;
+  imsak: string;
+  subuh: string;
+  terbit: string;
+  dhuha: string;
+  dzuhur: string;
+  ashar: string;
+  maghrib: string;
+  isya: string;
+}
+
+export interface ImsakiyahResponse {
+  provinsi: string;
+  kabkota: string;
+  hijriah: string;
+  masehi: string;
+  imsakiyah: ImsakDay[];
+}
+
+export interface ShalatDay extends ImsakDay {
+  tanggal_lengkap: string;
+  hari: string;
+}
+
+export interface ShalatResponse {
+  provinsi: string;
+  kabkota: string;
+  bulan: number;
+  tahun: number;
+  bulan_nama: string;
+  jadwal: ShalatDay[];
+}
