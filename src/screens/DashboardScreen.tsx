@@ -1,5 +1,5 @@
-﻿import { DoaItem, MAX_DOA_ID, getDoaById } from "@/api/doa";
-import { getImsakKabKota, getImsakProvinsi, getImsakiyah, getShalatSchedule } from "@/api/equran";
+﻿import { DoaItem, getAllDoa } from "@/api/doa";
+import { getImsakiyah, getImsakKabKota, getImsakProvinsi, getShalatSchedule } from "@/api/equran";
 import { getHijriDate } from "@/api/hijri";
 import { queryKeys } from "@/api/queryKeys";
 import { FeatureConfig, getFallbackFeatures, getFeatureConfig } from "@/api/remoteConfig";
@@ -73,7 +73,6 @@ const DashboardScreen: React.FC = () => {
   }, [today, userStart]);
   const tomorrow = useMemo(() => new Date(today.getTime() + 24 * 3600 * 1000), [today]);
   const todayKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-  const [randomDoaId] = useState(() => Math.floor(Math.random() * MAX_DOA_ID) + 1);
 
   const provQuery = useQuery({
     queryKey: queryKeys.imsakProvinsi,
@@ -131,16 +130,26 @@ const DashboardScreen: React.FC = () => {
     staleTime: 1000 * 60 * 60 * 6
   });
 
-  const doaQuery = useQuery({
-    queryKey: queryKeys.doaHarian(randomDoaId),
-    queryFn: () => getDoaById(randomDoaId),
-    staleTime: 1000 * 60 * 60 * 6
+  const doaListQuery = useQuery({
+    queryKey: ["doaList"],
+    queryFn: getAllDoa,
+    staleTime: 1000 * 60 * 60 * 24 // Cache for 24 hours
   });
+
+  const [randomDoaId, setRandomDoaId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (doaListQuery.data && doaListQuery.data.length > 0 && randomDoaId === null) {
+      // Pick a random ID only once per dashboard mount when data is available
+      const randomItem = doaListQuery.data[Math.floor(Math.random() * doaListQuery.data.length)];
+      setRandomDoaId(randomItem.id);
+    }
+  }, [doaListQuery.data, randomDoaId]);
 
   const featureConfigQuery = useQuery({
     queryKey: queryKeys.featureConfig,
     queryFn: getFeatureConfig,
-    staleTime: 1000 * 60 * 60 * 12
+    staleTime: 0 // bypass cache temporarily to ensure UI update
   });
 
   const todayIso = useMemo(() => {
@@ -272,7 +281,10 @@ const DashboardScreen: React.FC = () => {
     return fallbackIntl() || "--\n---- H";
   }, [hijriQuery.data, today]);
 
-  const doaHarian: DoaItem | null = doaQuery.data ?? null;
+  const doaHarian: DoaItem | null = useMemo(() => {
+    if (!doaListQuery.data || randomDoaId === null) return null;
+    return doaListQuery.data.find((d) => d.id === randomDoaId) || null;
+  }, [doaListQuery.data, randomDoaId]);
 
   const fallbackDoa: DoaItem = {
     id: 0,
@@ -360,9 +372,7 @@ const DashboardScreen: React.FC = () => {
         {/* Fitur Utama */}
         <View style={{ marginTop: 18, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <Text style={{ color: colors.text, fontSize: 18, fontWeight: "800" }}>Fitur Utama</Text>
-          <Pressable onPress={() => navigation.navigate("Features")}>
-            <Text style={{ color: colors.primary, fontWeight: "700" }}>Lihat Semua</Text>
-          </Pressable>
+          
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 12 }}>
           {activeFeatures.map((item) => (
@@ -390,7 +400,7 @@ const DashboardScreen: React.FC = () => {
         <View style={[styles.doaCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={{ color: colors.primary, fontWeight: "800", marginBottom: 6 }}>DOA HARI INI</Text>
           <Text style={{ color: colors.muted, marginBottom: 10 }}>
-            {doaQuery.isLoading ? "Memuat doa..." : doaHarian?.title || fallbackDoa.title}
+            {doaListQuery.isLoading ? "Memuat doa..." : doaHarian?.title || fallbackDoa.title}
           </Text>
           <Text style={{ color: colors.text, fontSize: 18, lineHeight: 28, marginBottom: 14 }}>
             {doaHarian?.arabic || fallbackDoa.arabic}
@@ -402,10 +412,10 @@ const DashboardScreen: React.FC = () => {
           )}
           <Pressable
             style={[styles.doaButton, { backgroundColor: colors.primary }]}
-            onPress={() => navigation.navigate("Features")}
+            onPress={() => navigation.navigate("DoaList", { doaId: doaHarian?.id })}
           >
             <Text style={{ color: "#FFFFFF", fontWeight: "800" }}>
-              {countdownLabel === "Maghrib" ? "Doa Berbuka Puasa" : "Lihat Doa"}
+              Lihat Kumpulan Doa
             </Text>
             <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
           </Pressable>

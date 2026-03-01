@@ -1,4 +1,4 @@
-import { getSurahDetail, getSurahList, getTafsir } from "@/api/equran";
+import { getSurahDetail, getSurahList } from "@/api/equran";
 import { queryKeys } from "@/api/queryKeys";
 import AyahCard from "@/components/AyahCard";
 import FontSizeSlider from "@/components/FontSizeSlider";
@@ -29,7 +29,7 @@ import {
   Text,
   TextInput,
   View,
-  ViewToken
+  ViewToken,
 } from "react-native";
 
 type ScreenRoute = RouteProp<RootStackParamList, "SurahDetail">;
@@ -40,14 +40,91 @@ const qariOptions: Record<string, string> = {
   "03": "Abdurrahman as-Sudais",
   "04": "Ibrahim Al-Dossari",
   "05": "Misyari Rasyid Al-Afasi",
-  "06": "Yasser Al-Dosari"
+  "06": "Yasser Al-Dosari",
 };
+/** Komponen terpisah agar TextInput tidak kehilangan fokus saat parent re-render */
+const JumpToAyat = React.memo(
+  ({
+    jumlahAyat,
+    colors,
+    onJump,
+  }: {
+    jumlahAyat: number;
+    colors: typeof import("@/theme").lightColors;
+    onJump: (n: number) => void;
+  }) => {
+    const inputRef = useRef<TextInput>(null);
+    const valueRef = useRef("");
+    const doJump = () => {
+      const n = parseInt(valueRef.current, 10);
+      if (n >= 1 && n <= jumlahAyat) onJump(n);
+    };
+    return (
+      <View
+        style={[
+          jumpStyles.row,
+          { borderColor: colors.border, backgroundColor: colors.badge },
+        ]}
+      >
+        <Ionicons name="search" size={14} color={colors.muted} />
+        <TextInput
+          ref={inputRef}
+          style={[jumpStyles.input, { color: colors.text }]}
+          placeholder={`Ayat 1-${jumlahAyat}`}
+          placeholderTextColor={colors.muted}
+          keyboardType="number-pad"
+          returnKeyType="go"
+          blurOnSubmit={false}
+          onChangeText={(text) => {
+            valueRef.current = text;
+          }}
+          onSubmitEditing={() => {
+            doJump();
+            valueRef.current = "";
+            inputRef.current?.clear();
+            Keyboard.dismiss();
+          }}
+        />
+        <Pressable
+          onPress={() => {
+            doJump();
+            valueRef.current = "";
+            inputRef.current?.clear();
+            Keyboard.dismiss();
+          }}
+          hitSlop={8}
+        >
+          <Ionicons
+            name="arrow-forward-circle"
+            size={20}
+            color={colors.primary}
+          />
+        </Pressable>
+      </View>
+    );
+  },
+);
 
-
+const jumpStyles = StyleSheet.create({
+  row: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  input: { flex: 1, fontSize: 13, paddingVertical: 2 },
+});
 
 const SurahDetailScreen: React.FC = () => {
   const route = useRoute<ScreenRoute>();
-  const navigation = useNavigation<import("@react-navigation/native-stack").NativeStackNavigationProp<RootStackParamList>>();
+  const navigation =
+    useNavigation<
+      import("@react-navigation/native-stack").NativeStackNavigationProp<RootStackParamList>
+    >();
   const { nomor, initialAyah, autoPlay } = route.params;
   const { settings, setSettings, isDark } = useSettings();
   const { setLastRead, lastRead } = useReadingState();
@@ -67,12 +144,7 @@ const SurahDetailScreen: React.FC = () => {
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [audioPosition, setAudioPosition] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
-  const [showTafsir, setShowTafsir] = useState(false);
-  const [tafsirShowAll, setTafsirShowAll] = useState(false);
   const [qariSheet, setQariSheet] = useState(false);
-  // Uncontrolled refs untuk jump-to-ayat — tidak menyebabkan re-render saat mengetik
-  const jumpAyatRef = useRef("");
-  const jumpInputRef = useRef<TextInput>(null);
 
   const flatListRef = useRef<FlatList<Ayah>>(null);
   const panResponder = useRef(
@@ -80,32 +152,36 @@ const SurahDetailScreen: React.FC = () => {
       // Jangan intercept touch saat mulai — hanya intercept saat sudah bergerak horizontal
       onStartShouldSetPanResponder: () => false,
       onStartShouldSetPanResponderCapture: () => false,
-      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 40 && Math.abs(g.dy) < 15,
+      onMoveShouldSetPanResponder: (_, g) =>
+        Math.abs(g.dx) > 40 && Math.abs(g.dy) < 15,
       onMoveShouldSetPanResponderCapture: () => false,
       onPanResponderRelease: (_, g) => {
-        if (g.dx < -60 && data?.suratSelanjutnya && typeof data.suratSelanjutnya !== "boolean") goToSurah(data.suratSelanjutnya.nomor);
-        else if (g.dx > 60 && data?.suratSebelumnya && typeof data.suratSebelumnya !== "boolean")
+        if (
+          g.dx < -60 &&
+          data?.suratSelanjutnya &&
+          typeof data.suratSelanjutnya !== "boolean"
+        )
+          goToSurah(data.suratSelanjutnya.nomor);
+        else if (
+          g.dx > 60 &&
+          data?.suratSebelumnya &&
+          typeof data.suratSebelumnya !== "boolean"
+        )
           goToSurah(data.suratSebelumnya.nomor);
-      }
-    })
+      },
+    }),
   );
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: queryKeys.surahDetail(nomor),
     queryFn: () => getSurahDetail(nomor),
-    staleTime: 1000 * 60 * 30
-  });
-
-  const tafsirQuery = useQuery({
-    queryKey: queryKeys.tafsir(nomor),
-    queryFn: () => getTafsir(nomor),
-    enabled: showTafsir
+    staleTime: 1000 * 60 * 30,
   });
 
   const surahList = useQuery({
     queryKey: queryKeys.surahList,
     queryFn: getSurahList,
-    staleTime: 1000 * 60 * 10
+    staleTime: 1000 * 60 * 10,
   }).data;
 
   const ayat = data?.ayat ?? [];
@@ -163,26 +239,44 @@ const SurahDetailScreen: React.FC = () => {
     const currentSettings = settingsRef.current;
     if (!currentData) return;
     const target = currentData.ayat.find((a) => a.nomorAyat === ayahNum);
-    if (!target) { console.warn(`[Audio] ayah ${ayahNum} not found`); return; }
+    if (!target) {
+      console.warn(`[Audio] ayah ${ayahNum} not found`);
+      return;
+    }
     const audioUrl = target.audio[currentSettings.qari];
-    if (!audioUrl) throw new Error(`URL audio tidak tersedia (qari ${currentSettings.qari}, ayat ${ayahNum})`);
+    if (!audioUrl)
+      throw new Error(
+        `URL audio tidak tersedia (qari ${currentSettings.qari}, ayat ${ayahNum})`,
+      );
 
-    console.log(`[Audio] loading surah=${nomor} ayah=${ayahNum} mode=${mode} qari=${currentSettings.qari}`);
+    console.log(
+      `[Audio] loading surah=${nomor} ayah=${ayahNum} mode=${mode} qari=${currentSettings.qari}`,
+    );
     await unloadSound();
     const token = ++playToken.current;
-    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+    });
     const snd = new Audio.Sound();
     await snd.loadAsync({ uri: audioUrl });
     // Hanya update posisi 1x per detik — mencegah re-render berlebihan yang membuat button lambat
     await snd.setStatusAsync({ progressUpdateIntervalMillis: 1000 });
     soundRef.current = snd;
     // Pass ayahNum & mode directly so the callback is never stale
-    snd.setOnPlaybackStatusUpdate((st) => onAudioStatus(st, token, ayahNum, mode));
+    snd.setOnPlaybackStatusUpdate((st) =>
+      onAudioStatus(st, token, ayahNum, mode),
+    );
     await snd.playAsync();
     setPlayingMode(mode);
     setPlayingAyah(ayahNum);
     setIsPaused(false);
-    if (mode === "ayah") setLastRead({ surah: nomor, ayah: ayahNum, surahName: currentData.namaLatin });
+    if (mode === "ayah")
+      setLastRead({
+        surah: nomor,
+        ayah: ayahNum,
+        surahName: currentData.namaLatin,
+      });
     console.log(`[Audio] playing ayah=${ayahNum} mode=${mode}`);
   };
 
@@ -194,7 +288,7 @@ const SurahDetailScreen: React.FC = () => {
     status: AVPlaybackStatus,
     token: number,
     ayahNum: number,
-    mode: "ayah" | "full"
+    mode: "ayah" | "full",
   ) => {
     if (token !== playToken.current) return;
     if (!status.isLoaded) return;
@@ -222,9 +316,16 @@ const SurahDetailScreen: React.FC = () => {
       }
       // Last ayah of surah finished
       console.log(`[Audio] full: surah ${nomor} selesai di ayah ${ayahNum}`);
-      if (s.autoPlayNext && d?.suratSelanjutnya && typeof d.suratSelanjutnya !== "boolean") {
+      if (
+        s.autoPlayNext &&
+        d?.suratSelanjutnya &&
+        typeof d.suratSelanjutnya !== "boolean"
+      ) {
         console.log(`[Audio] autoNext → surah ${d.suratSelanjutnya.nomor}`);
-        navigation.replace("SurahDetail", { nomor: d.suratSelanjutnya.nomor, autoPlay: true });
+        navigation.replace("SurahDetail", {
+          nomor: d.suratSelanjutnya.nomor,
+          autoPlay: true,
+        });
         return;
       }
       if (s.repeatAyah && d) {
@@ -258,7 +359,10 @@ const SurahDetailScreen: React.FC = () => {
     try {
       await playAyahCore(ayahNumber, "ayah");
     } catch (err) {
-      Alert.alert("Gagal memutar audio", (err as Error)?.message ?? String(err));
+      Alert.alert(
+        "Gagal memutar audio",
+        (err as Error)?.message ?? String(err),
+      );
       await unloadSound();
     } finally {
       setIsAudioLoading(false);
@@ -269,12 +373,17 @@ const SurahDetailScreen: React.FC = () => {
   const playFullSurah = async () => {
     if (isAudioLoading) return;
     const d = dataRef.current;
-    console.log(`[Audio] playFullSurah: surah=${nomor} namaLatin=${d?.namaLatin} total=${d?.jumlahAyat} qari=${settingsRef.current.qari} autoNext=${settingsRef.current.autoPlayNext} repeat=${settingsRef.current.repeatAyah}`);
+    console.log(
+      `[Audio] playFullSurah: surah=${nomor} namaLatin=${d?.namaLatin} total=${d?.jumlahAyat} qari=${settingsRef.current.qari} autoNext=${settingsRef.current.autoPlayNext} repeat=${settingsRef.current.repeatAyah}`,
+    );
     setIsAudioLoading(true);
     try {
       await playAyahCore(1, "full");
     } catch (err) {
-      Alert.alert("Gagal memutar audio", (err as Error)?.message ?? String(err));
+      Alert.alert(
+        "Gagal memutar audio",
+        (err as Error)?.message ?? String(err),
+      );
       await unloadSound();
     } finally {
       setIsAudioLoading(false);
@@ -295,42 +404,72 @@ const SurahDetailScreen: React.FC = () => {
     }
   };
 
-
-
-  const scrollToAyah = (ayahNumber: number) => {
+  const scrollToAyah = useCallback((ayahNumber: number) => {
     const index = Math.max(ayahNumber - 1, 0);
-    flatListRef.current?.scrollToIndex({ index, animated: true });
-  };
+    flatListRef.current?.scrollToIndex({
+      index,
+      animated: true,
+      viewPosition: 0.5,
+    });
+  }, []);
 
   useEffect(() => {
     if (initialAyah) scrollToAyah(initialAyah);
   }, [initialAyah]);
 
-  const goToSurah = (num: number) => navigation.replace("SurahDetail", { nomor: num });
+  const goToSurah = (num: number) =>
+    navigation.replace("SurahDetail", { nomor: num });
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       const top = viewableItems[0]?.item as Ayah | undefined;
-      if (top) setLastRead({ surah: nomor, ayah: top.nomorAyat, surahName: data?.namaLatin ?? "" });
+      if (top)
+        setLastRead({
+          surah: nomor,
+          ayah: top.nomorAyat,
+          surahName: data?.namaLatin ?? "",
+        });
     },
-    [nomor, data?.namaLatin, setLastRead]
+    [nomor, data?.namaLatin, setLastRead],
   );
 
-
-
-  const onScrollToIndexFailed = useCallback((info: { index: number; averageItemLength: number }) => {
-    flatListRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: true });
-    setTimeout(() => flatListRef.current?.scrollToIndex({ index: info.index, animated: true }), 50);
-  }, []);
+  const onScrollToIndexFailed = useCallback(
+    (info: { index: number; averageItemLength: number }) => {
+      flatListRef.current?.scrollToOffset({
+        offset: info.averageItemLength * info.index,
+        animated: true,
+      });
+      setTimeout(
+        () =>
+          flatListRef.current?.scrollToIndex({
+            index: info.index,
+            animated: true,
+          }),
+        50,
+      );
+    },
+    [],
+  );
 
   const renderHeader = useCallback(() => {
     if (!data) return null;
     return (
-      <View style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 56 }]}>
+      <View
+        style={[
+          styles.headerCard,
+          {
+            backgroundColor: colors.card,
+            borderColor: colors.border,
+            marginTop: 0,
+          },
+        ]}
+      >
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.surahTitle, { color: colors.text }]}>{data.namaLatin} · {data.arti}</Text>
+            <Text style={[styles.surahTitle, { color: colors.text }]}>
+              {data.namaLatin} · {data.arti}
+            </Text>
             <Text style={{ color: colors.muted, marginTop: 2 }}>
               {data.tempatTurun} · {data.jumlahAyat} ayat
             </Text>
@@ -339,33 +478,75 @@ const SurahDetailScreen: React.FC = () => {
         </View>
 
         {lastRead?.surah === nomor && (
-          <Pressable style={[styles.cta, { borderColor: colors.border }]} onPress={() => scrollToAyah(lastRead.ayah)}>
-            <Ionicons name="arrow-down-circle" size={16} color={colors.primary} />
-            <Text style={{ color: colors.primary, fontWeight: "700" }}>Lanjutkan terakhir dibaca (ayat {lastRead.ayah})</Text>
+          <Pressable
+            style={[styles.cta, { borderColor: colors.border }]}
+            onPress={() => scrollToAyah(lastRead.ayah)}
+          >
+            <Ionicons
+              name="arrow-down-circle"
+              size={16}
+              color={colors.primary}
+            />
+            <Text style={{ color: colors.primary, fontWeight: "700" }}>
+              Lanjutkan terakhir dibaca (ayat {lastRead.ayah})
+            </Text>
           </Pressable>
         )}
 
         <View style={styles.quickRow}>
           <Pressable
-            style={[styles.chip, { borderColor: colors.border }, settings.autoPlayNext && styles.chipActive]}
+            style={[
+              styles.chip,
+              { borderColor: colors.border },
+              settings.autoPlayNext && styles.chipActive,
+            ]}
             onPress={() => {
               const next = !settings.autoPlayNext;
-              setSettings({ autoPlayNext: next, ...(next ? { repeatAyah: false } : {}) });
+              setSettings({
+                autoPlayNext: next,
+                ...(next ? { repeatAyah: false } : {}),
+              });
             }}
           >
-            <Text style={[styles.chipText, { color: settings.autoPlayNext ? colors.primary : colors.text }]}>Auto Next</Text>
+            <Text
+              style={[
+                styles.chipText,
+                { color: settings.autoPlayNext ? colors.primary : colors.text },
+              ]}
+            >
+              Auto Next
+            </Text>
           </Pressable>
           <Pressable
-            style={[styles.chip, { borderColor: colors.border }, settings.repeatAyah && styles.chipActive]}
+            style={[
+              styles.chip,
+              { borderColor: colors.border },
+              settings.repeatAyah && styles.chipActive,
+            ]}
             onPress={() => {
               const next = !settings.repeatAyah;
-              setSettings({ repeatAyah: next, ...(next ? { autoPlayNext: false } : {}) });
+              setSettings({
+                repeatAyah: next,
+                ...(next ? { autoPlayNext: false } : {}),
+              });
             }}
           >
-            <Text style={[styles.chipText, { color: settings.repeatAyah ? colors.primary : colors.text }]}>Repeat Surah</Text>
+            <Text
+              style={[
+                styles.chipText,
+                { color: settings.repeatAyah ? colors.primary : colors.text },
+              ]}
+            >
+              Repeat Surah
+            </Text>
           </Pressable>
-          <Pressable style={[styles.chip, { borderColor: colors.border }]} onPress={() => setQariSheet(true)}>
-            <Text style={[styles.chipText, { color: colors.text }]}>Qari: {qariOptions[settings.qari]}</Text>
+          <Pressable
+            style={[styles.chip, { borderColor: colors.border }]}
+            onPress={() => setQariSheet(true)}
+          >
+            <Text style={[styles.chipText, { color: colors.text }]}>
+              Qari: {qariOptions[settings.qari]}
+            </Text>
           </Pressable>
         </View>
 
@@ -373,7 +554,13 @@ const SurahDetailScreen: React.FC = () => {
           <Pressable
             onPress={playFullSurah}
             disabled={isAudioLoading}
-            style={[styles.controlBtn, { borderColor: isAudioLoading ? colors.primary : colors.border, opacity: isAudioLoading ? 0.7 : 1 }]}
+            style={[
+              styles.controlBtn,
+              {
+                borderColor: isAudioLoading ? colors.primary : colors.border,
+                opacity: isAudioLoading ? 0.7 : 1,
+              },
+            ]}
           >
             {isAudioLoading && !playingMode ? (
               <ActivityIndicator size={16} color={colors.primary} />
@@ -381,58 +568,58 @@ const SurahDetailScreen: React.FC = () => {
               <Ionicons name="play" color={colors.primary} size={16} />
             )}
             <Text style={{ color: colors.primary, fontWeight: "700" }}>
-              {isAudioLoading && !playingMode ? "Memuat audio..." : "Putar penuh"}
+              {isAudioLoading && !playingMode
+                ? "Memuat audio..."
+                : "Putar penuh"}
             </Text>
           </Pressable>
 
-          {/* Jump-to-Ayat: ganti tombol Awal */}
-          <View style={[styles.jumpRow, { borderColor: colors.border, backgroundColor: colors.badge }]}>
-            <Ionicons name="search" size={14} color={colors.muted} />
-            <TextInput
-              ref={jumpInputRef}
-              style={[styles.jumpInput, { color: colors.text }]}
-              placeholder={`Ayat 1-${data.jumlahAyat}`}
-              placeholderTextColor={colors.muted}
-              keyboardType="number-pad"
-              returnKeyType="go"
-              blurOnSubmit={false}
-              onChangeText={(text) => { jumpAyatRef.current = text; }}
-              onSubmitEditing={() => {
-                const n = parseInt(jumpAyatRef.current, 10);
-                if (n >= 1 && n <= data.jumlahAyat) scrollToAyah(n);
-              }}
-            />
-            <Pressable
-              onPress={() => {
-                const n = parseInt(jumpAyatRef.current, 10);
-                if (n >= 1 && n <= data.jumlahAyat) scrollToAyah(n);
-                jumpAyatRef.current = "";
-                jumpInputRef.current?.clear();
-                Keyboard.dismiss();
-              }}
-              hitSlop={8}
-            >
-              <Ionicons name="arrow-forward-circle" size={20} color={colors.primary} />
-            </Pressable>
-          </View>
+          {/* Jump-to-Ayat — komponen terpisah agar tidak remount saat parent re-render */}
+          <JumpToAyat
+            jumlahAyat={data.jumlahAyat}
+            colors={colors}
+            onJump={scrollToAyah}
+          />
+        </View>
+
+        <View style={{ marginTop: 12, gap: 12 }}>
+          <FontSizeSlider />
+          <ToggleTranslation />
         </View>
 
         <View style={[styles.toggleRow, { borderColor: colors.border }]}>
-          <Pressable style={styles.toggleLeft} onPress={() => setShowTafsir(!showTafsir)}>
+          <Pressable
+            style={styles.toggleLeft}
+            onPress={() => navigation.navigate("Tafsir", { nomor })}
+          >
             <Ionicons name="book-outline" size={16} color={colors.text} />
-            <Text style={{ color: colors.text, fontWeight: "600" }}>Tafsir</Text>
+            <Text style={{ color: colors.text, fontWeight: "600" }}>
+              Tafsir
+            </Text>
           </Pressable>
-          <Pressable style={styles.toggleRight} onPress={() => navigation.goBack()}>
+          <Pressable
+            style={styles.toggleRight}
+            onPress={() => navigation.goBack()}
+          >
             <Ionicons name="arrow-back" size={16} color={colors.text} />
-            <Text style={{ color: colors.text, fontWeight: "600" }}>Kembali</Text>
+            <Text style={{ color: colors.text, fontWeight: "600" }}>
+              Kembali
+            </Text>
           </Pressable>
         </View>
       </View>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    data, colors, nomor, settings.autoPlayNext, settings.repeatAyah, settings.qari,
-    lastRead, isAudioLoading, playingMode, showTafsir
+    data,
+    colors,
+    nomor,
+    settings.autoPlayNext,
+    settings.repeatAyah,
+    settings.qari,
+    lastRead,
+    isAudioLoading,
+    playingMode,
   ]);
 
   const renderItem = useCallback(
@@ -445,82 +632,114 @@ const SurahDetailScreen: React.FC = () => {
         fontSize={settings.fontSize}
         showTranslation={settings.showTranslation}
         isActive={playingAyah === item.nomorAyat}
-        isPlaying={playingAyah === item.nomorAyat && playingMode === "ayah" && !isPaused}
+        isPlaying={
+          playingAyah === item.nomorAyat && playingMode === "ayah" && !isPaused
+        }
         isLoading={isAudioLoading && playingAyah === item.nomorAyat}
         onPlay={() => playAyah(item.nomorAyat)}
         onStop={stopAudio}
         onScrollTo={() => scrollToAyah(item.nomorAyat)}
       />
     ),
-    [nomor, data?.namaLatin, settings.qari, settings.fontSize, settings.showTranslation, playingAyah, playingMode, isPaused, isAudioLoading]
+    [
+      nomor,
+      data?.namaLatin,
+      settings.qari,
+      settings.fontSize,
+      settings.showTranslation,
+      playingAyah,
+      playingMode,
+      isPaused,
+      isAudioLoading,
+    ],
   );
 
-  const prevSurah = data?.suratSebelumnya && typeof data.suratSebelumnya !== "boolean" ? data.suratSebelumnya : null;
+  const prevSurah =
+    data?.suratSebelumnya && typeof data.suratSebelumnya !== "boolean"
+      ? data.suratSebelumnya
+      : null;
   const nextSurah = data?.suratSelanjutnya || null;
 
-  const renderFooter = useCallback(() => (
-    <View style={{ paddingHorizontal: 16, paddingBottom: 100 }}>
-      <FontSizeSlider />
-      <View style={{ height: 12 }} />
-      <ToggleTranslation />
-      {showTafsir && (
-        <View style={[styles.tafsirCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Tafsir Ringkas</Text>
-          {tafsirQuery.isLoading && <ActivityIndicator color={colors.primary} />}
-          {tafsirQuery.error && <Text style={{ color: colors.muted }}>Gagal memuat tafsir</Text>}
-          {tafsirQuery.data && (
-            <>
-              {(tafsirShowAll ? tafsirQuery.data.tafsir : tafsirQuery.data.tafsir.slice(0, 5)).map((t) => (
-                <View key={t.ayat} style={{ marginBottom: 12 }}>
-                  <Text style={{ color: colors.primary, fontWeight: "700", marginBottom: 4 }}>Ayat {t.ayat}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 14 }}>{t.teks}</Text>
-                </View>
-              ))}
-              {tafsirQuery.data.tafsir.length > 5 && (
-                <Pressable
-                  onPress={() => setTafsirShowAll(!tafsirShowAll)}
-                  style={[styles.showAllBtn, { borderColor: colors.primary }]}
+  const renderFooter = useCallback(
+    () => (
+      <View style={{ paddingHorizontal: 16, paddingBottom: 100 }}>
+
+        {/* Navigasi Surah */}
+        <View style={[styles.surahNav, { borderColor: colors.border }]}>
+          {prevSurah ? (
+            <Pressable
+              style={[
+                styles.surahNavBtn,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              onPress={() => goToSurah(prevSurah.nomor)}
+            >
+              <Ionicons name="chevron-back" size={16} color={colors.primary} />
+              <View>
+                <Text style={{ color: colors.muted, fontSize: 10 }}>
+                  Sebelumnya
+                </Text>
+                <Text
+                  style={{ color: colors.text, fontWeight: "700" }}
+                  numberOfLines={1}
                 >
-                  <Text style={{ color: colors.primary, fontWeight: "700" }}>
-                    {tafsirShowAll ? "Tampilkan lebih sedikit" : `Lihat semua (${tafsirQuery.data.tafsir.length} ayat)`}
-                  </Text>
-                </Pressable>
-              )}
-            </>
+                  {prevSurah.nomor}. {prevSurah.namaLatin}
+                </Text>
+              </View>
+            </Pressable>
+          ) : (
+            <View style={{ flex: 1 }} />
+          )}
+          {nextSurah ? (
+            <Pressable
+              style={[
+                styles.surahNavBtn,
+                styles.surahNavBtnRight,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              onPress={() => goToSurah(nextSurah.nomor)}
+            >
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={{ color: colors.muted, fontSize: 10 }}>
+                  Selanjutnya
+                </Text>
+                <Text
+                  style={{ color: colors.text, fontWeight: "700" }}
+                  numberOfLines={1}
+                >
+                  {nextSurah.nomor}. {nextSurah.namaLatin}
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={16}
+                color={colors.primary}
+              />
+            </Pressable>
+          ) : (
+            <View style={{ flex: 1 }} />
           )}
         </View>
-      )}
 
-      {/* Navigasi Surah */}
-      <View style={[styles.surahNav, { borderColor: colors.border }]}>
-        {prevSurah ? (
-          <Pressable style={[styles.surahNavBtn, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => goToSurah(prevSurah.nomor)}>
-            <Ionicons name="chevron-back" size={16} color={colors.primary} />
-            <View>
-              <Text style={{ color: colors.muted, fontSize: 10 }}>Sebelumnya</Text>
-              <Text style={{ color: colors.text, fontWeight: "700" }} numberOfLines={1}>{prevSurah.nomor}. {prevSurah.namaLatin}</Text>
-            </View>
-          </Pressable>
-        ) : <View style={{ flex: 1 }} />}
-        {nextSurah ? (
-          <Pressable style={[styles.surahNavBtn, styles.surahNavBtnRight, { backgroundColor: colors.card, borderColor: colors.border }]} onPress={() => goToSurah(nextSurah.nomor)}>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={{ color: colors.muted, fontSize: 10 }}>Selanjutnya</Text>
-              <Text style={{ color: colors.text, fontWeight: "700" }} numberOfLines={1}>{nextSurah.nomor}. {nextSurah.namaLatin}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-          </Pressable>
-        ) : <View style={{ flex: 1 }} />}
+        <View style={{ height: 32 }} />
       </View>
-
-      <View style={{ height: 32 }} />
-    </View>
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [colors, showTafsir, tafsirQuery.data, tafsirQuery.isLoading, tafsirQuery.error, tafsirShowAll, prevSurah, nextSurah]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    ),
+    [
+      colors,
+      prevSurah,
+      nextSurah,
+    ],
+  );
 
   if (isLoading) {
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: colors.background, justifyContent: "center" }]}>
+      <SafeAreaView
+        style={[
+          styles.screen,
+          { backgroundColor: colors.background, justifyContent: "center" },
+        ]}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
@@ -528,8 +747,15 @@ const SurahDetailScreen: React.FC = () => {
 
   if (error || !data) {
     return (
-      <SafeAreaView style={[styles.screen, { backgroundColor: colors.background, padding: 16 }]}>
-        <Text style={{ color: colors.text, marginBottom: 12 }}>Gagal memuat: {(error as Error)?.message}</Text>
+      <SafeAreaView
+        style={[
+          styles.screen,
+          { backgroundColor: colors.background, padding: 16 },
+        ]}
+      >
+        <Text style={{ color: colors.text, marginBottom: 12 }}>
+          Gagal memuat: {(error as Error)?.message}
+        </Text>
         <Pressable onPress={() => refetch()}>
           <Text style={{ color: colors.primary }}>Coba lagi</Text>
         </Pressable>
@@ -538,16 +764,35 @@ const SurahDetailScreen: React.FC = () => {
   }
 
   const navThree = (() => {
-    const prev = data?.suratSebelumnya && typeof data.suratSebelumnya !== "boolean" ? data.suratSebelumnya : null;
+    const prev =
+      data?.suratSebelumnya && typeof data.suratSebelumnya !== "boolean"
+        ? data.suratSebelumnya
+        : null;
     const current = data ? { nomor: nomor, namaLatin: data.namaLatin } : null;
     const next = data?.suratSelanjutnya || null;
-    return [prev, current, next].filter(Boolean) as { nomor: number; namaLatin: string }[];
+    return [prev, current, next].filter(Boolean) as {
+      nomor: number;
+      namaLatin: string;
+    }[];
   })();
 
   return (
-    <SafeAreaView style={[styles.screen, { backgroundColor: colors.background }]} {...panResponder.current.panHandlers}>
-      <View style={[styles.navOverlay, { backgroundColor: colors.card, borderColor: colors.border }]} pointerEvents="box-none">
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
+    <SafeAreaView
+      style={[styles.screen, { backgroundColor: colors.background }]}
+      {...panResponder.current.panHandlers}
+    >
+      <View
+        style={[
+          styles.navOverlay,
+          { backgroundColor: colors.card, borderColor: colors.border },
+        ]}
+        pointerEvents="box-none"
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}
+        >
           {navThree.map((s) => {
             const active = s.nomor === nomor;
             return (
@@ -556,10 +801,19 @@ const SurahDetailScreen: React.FC = () => {
                 onPress={() => goToSurah(s.nomor)}
                 style={[
                   styles.navPill,
-                  { backgroundColor: active ? colors.primary : colors.badge, borderColor: colors.border }
+                  {
+                    backgroundColor: active ? colors.primary : colors.badge,
+                    borderColor: colors.border,
+                  },
                 ]}
               >
-                <Text style={{ color: active ? "#0b1224" : colors.badgeText, fontWeight: "700", fontSize: 12 }}>
+                <Text
+                  style={{
+                    color: active ? "#0b1224" : colors.badgeText,
+                    fontWeight: "700",
+                    fontSize: 12,
+                  }}
+                >
                   {s.nomor}. {s.namaLatin}
                 </Text>
               </Pressable>
@@ -573,7 +827,11 @@ const SurahDetailScreen: React.FC = () => {
         data={ayat}
         keyExtractor={(item) => item.nomorAyat.toString()}
         renderItem={renderItem}
-        contentContainerStyle={{ padding: 16, paddingBottom: 48, paddingTop: 80 }}
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: 48,
+          paddingTop: 56,
+        }}
         ListHeaderComponent={renderHeader}
         ListFooterComponent={renderFooter}
         viewabilityConfig={viewabilityConfig}
@@ -581,38 +839,82 @@ const SurahDetailScreen: React.FC = () => {
         onScrollToIndexFailed={onScrollToIndexFailed}
       />
 
-      <Modal visible={qariSheet} animationType="slide" transparent onRequestClose={() => setQariSheet(false)}>
+      <Modal
+        visible={qariSheet}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setQariSheet(false)}
+      >
         <View style={styles.sheetBackdrop}>
           <View style={[styles.sheet, { backgroundColor: colors.card }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 12 }]}>Pilih Qari</Text>
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: colors.text, marginBottom: 12 },
+              ]}
+            >
+              Pilih Qari
+            </Text>
             {Object.entries(qariOptions).map(([key, label]) => (
               <Pressable
                 key={key}
-                style={[styles.sheetItem, settings.qari === key && { backgroundColor: colors.badge }]}
+                style={[
+                  styles.sheetItem,
+                  settings.qari === key && { backgroundColor: colors.badge },
+                ]}
                 onPress={() => {
                   setSettings({ qari: key });
                   setQariSheet(false);
                 }}
               >
-                <Text style={{ color: colors.text, fontWeight: "700" }}>{label}</Text>
+                <Text style={{ color: colors.text, fontWeight: "700" }}>
+                  {label}
+                </Text>
               </Pressable>
             ))}
-            <Pressable style={[styles.sheetItem, { alignItems: "center" }]} onPress={() => setQariSheet(false)}>
-              <Text style={{ color: colors.primary, fontWeight: "700" }}>Tutup</Text>
+            <Pressable
+              style={[styles.sheetItem, { alignItems: "center" }]}
+              onPress={() => setQariSheet(false)}
+            >
+              <Text style={{ color: colors.primary, fontWeight: "700" }}>
+                Tutup
+              </Text>
             </Pressable>
           </View>
         </View>
       </Modal>
 
       {(playingMode || isAudioLoading) && (
-        <View style={[styles.audioFloating, { backgroundColor: colors.card, borderColor: isAudioLoading ? colors.primary : colors.border }]}>
-          <Pressable style={[styles.iconBtn, { borderColor: colors.border }]} onPress={togglePause} disabled={isAudioLoading}>
-            {isAudioLoading
-              ? <ActivityIndicator size={18} color={colors.primary} />
-              : <Ionicons name={isPaused ? "play" : "pause"} size={18} color={colors.primary} />}
+        <View
+          style={[
+            styles.audioFloating,
+            {
+              backgroundColor: colors.card,
+              borderColor: isAudioLoading ? colors.primary : colors.border,
+            },
+          ]}
+        >
+          <Pressable
+            style={[styles.iconBtn, { borderColor: colors.border }]}
+            onPress={togglePause}
+            disabled={isAudioLoading}
+          >
+            {isAudioLoading ? (
+              <ActivityIndicator size={18} color={colors.primary} />
+            ) : (
+              <Ionicons
+                name={isPaused ? "play" : "pause"}
+                size={18}
+                color={colors.primary}
+              />
+            )}
           </Pressable>
           <View style={styles.audioTextWrap}>
-            <Text style={[styles.audioTitle, { color: colors.text }]} numberOfLines={1} ellipsizeMode="tail">
+            <Text
+              style={[styles.audioTitle, { color: colors.text }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
               {isAudioLoading
                 ? "Memuat audio..."
                 : playingMode === "ayah" && playingAyah
@@ -620,11 +922,16 @@ const SurahDetailScreen: React.FC = () => {
                   : `Memutar penuh · ${qariOptions[settings.qari]}`}
             </Text>
             {/* Progress bar */}
-            <View style={[styles.audioProgress, { backgroundColor: colors.border }]}>
+            <View
+              style={[styles.audioProgress, { backgroundColor: colors.border }]}
+            >
               <View
                 style={[
                   styles.audioProgressFill,
-                  { width: `${audioDuration > 0 ? Math.min((audioPosition / audioDuration) * 100, 100) : 0}%`, backgroundColor: colors.primary }
+                  {
+                    width: `${audioDuration > 0 ? Math.min((audioPosition / audioDuration) * 100, 100) : 0}%`,
+                    backgroundColor: colors.primary,
+                  },
                 ]}
               />
             </View>
@@ -636,7 +943,11 @@ const SurahDetailScreen: React.FC = () => {
                   : "Memuat..."}
             </Text>
           </View>
-          <Pressable style={[styles.iconBtn, { borderColor: colors.border }]} onPress={stopAudio} disabled={isAudioLoading}>
+          <Pressable
+            style={[styles.iconBtn, { borderColor: colors.border }]}
+            onPress={stopAudio}
+            disabled={isAudioLoading}
+          >
             <Ionicons name="stop" size={18} color={colors.muted} />
           </Pressable>
         </View>
@@ -653,9 +964,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 14,
     padding: 16,
-    marginBottom: 14
+    marginBottom: 14,
   },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   surahTitle: { fontSize: 20, fontWeight: "800" },
   arab: { fontSize: 22, fontWeight: "800" },
   desc: { fontSize: 13, marginTop: 8 },
@@ -666,7 +981,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6
+    gap: 6,
   },
   audioRow: {
     flexDirection: "row",
@@ -675,7 +990,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     padding: 10,
-    marginTop: 12
+    marginTop: 12,
   },
   audioTextWrap: { flex: 1, minWidth: 0 },
   audioTitle: { fontWeight: "700", flexShrink: 1 },
@@ -693,23 +1008,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderWidth: 1,
-    borderRadius: 10
+    borderRadius: 10,
   },
   quickRow: {
     flexDirection: "row",
     gap: 8,
     marginTop: 12,
-    flexWrap: "wrap"
+    flexWrap: "wrap",
   },
   chip: {
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 10,
-    borderWidth: 1
+    borderWidth: 1,
   },
   chipActive: {
     backgroundColor: "#E0F4FF",
-    borderColor: "#00C8FF"
+    borderColor: "#00C8FF",
   },
   chipText: { fontWeight: "700" },
   toggleRow: {
@@ -718,13 +1033,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: 12,
     borderTopWidth: 1,
-    paddingTop: 12
+    paddingTop: 12,
   },
   toggleLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
   toggleRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   tafsirCard: { borderWidth: 1, borderRadius: 12, padding: 14, marginTop: 16 },
   sectionTitle: { fontSize: 17, fontWeight: "800", marginBottom: 8 },
-  navPill: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  navPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
   navOverlay: {
     position: "absolute",
     top: 0,
@@ -732,30 +1052,30 @@ const styles = StyleSheet.create({
     right: 0,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    zIndex: 10
+    zIndex: 10,
   },
   badge: {
     alignSelf: "center",
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999
+    borderRadius: 999,
   },
   badgeText: { color: "#0b1224", fontWeight: "700" },
   sheetBackdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end"
+    justifyContent: "flex-end",
   },
   sheet: {
     padding: 16,
     borderTopLeftRadius: 16,
-    borderTopRightRadius: 16
+    borderTopRightRadius: 16,
   },
   sheetItem: {
     paddingVertical: 12,
     paddingHorizontal: 10,
     borderRadius: 10,
-    marginBottom: 8
+    marginBottom: 8,
   },
   audioFloating: {
     position: "absolute",
@@ -771,25 +1091,25 @@ const styles = StyleSheet.create({
     elevation: 8,
     shadowOpacity: 0.12,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 }
+    shadowOffset: { width: 0, height: 4 },
   },
   audioProgress: {
     height: 4,
     borderRadius: 4,
     marginTop: 6,
     marginBottom: 2,
-    overflow: "hidden"
+    overflow: "hidden",
   },
   audioProgressFill: {
     height: 4,
-    borderRadius: 4
+    borderRadius: 4,
   },
   showAllBtn: {
     marginTop: 8,
     paddingVertical: 10,
     alignItems: "center",
     borderWidth: 1,
-    borderRadius: 10
+    borderRadius: 10,
   },
   surahNav: {
     flexDirection: "row",
@@ -797,7 +1117,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 20,
     paddingTop: 16,
-    borderTopWidth: 1
+    borderTopWidth: 1,
   },
   surahNavBtn: {
     flex: 1,
@@ -806,10 +1126,10 @@ const styles = StyleSheet.create({
     gap: 8,
     borderWidth: 1,
     borderRadius: 12,
-    padding: 12
+    padding: 12,
   },
   surahNavBtnRight: {
-    justifyContent: "flex-end"
+    justifyContent: "flex-end",
   },
   jumpRow: {
     flex: 1,
@@ -819,13 +1139,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 6
+    paddingVertical: 6,
   },
   jumpInput: {
     flex: 1,
     fontSize: 13,
-    paddingVertical: 2
-  }
+    paddingVertical: 2,
+  },
 });
 
 export default SurahDetailScreen;

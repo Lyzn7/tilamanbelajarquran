@@ -1,5 +1,7 @@
 import DashboardScreen from "@/screens/DashboardScreen";
+import DoaListScreen from "@/screens/DoaListScreen";
 import JuzListScreen from "@/screens/JuzListScreen";
+import KiblatScreen from "@/screens/KiblatScreen";
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import PlaceholderScreen from "@/screens/PlaceholderScreen";
 import SearchScreen from "@/screens/SearchScreen";
@@ -7,6 +9,8 @@ import SettingsScreen from "@/screens/SettingsScreen";
 import ShalatScreen from "@/screens/ShalatScreen";
 import SurahDetailScreen from "@/screens/SurahDetailScreen";
 import SurahListScreen from "@/screens/SurahListScreen";
+import TafsirScreen from "@/screens/TafsirScreen";
+import TajwidScreen from "@/screens/TajwidScreen";
 import { useSettings } from "@/store/SettingsProvider";
 import { STORAGE_KEYS } from "@/store/storageKeys";
 import { darkColors, lightColors } from "@/theme";
@@ -27,6 +31,10 @@ export type RootStackParamList = {
   Onboarding: undefined;
   PrayerSchedule: undefined;
   Features: undefined;
+  Tajwid: undefined;
+  Kiblat: undefined;
+  DoaList: undefined;
+  Tafsir: { nomor: number };
 };
 
 const Tab = createBottomTabNavigator();
@@ -48,8 +56,8 @@ const Tabs = () => (
       tabBarInactiveTintColor: lightColors.muted,
       tabBarStyle: {
         paddingBottom: 6,
-        
-        height: 60,
+        paddingTop: 6,
+        height: 40,
         backgroundColor: lightColors.card,
         borderTopColor: lightColors.border
       }
@@ -67,6 +75,13 @@ const Tabs = () => (
       component={SurahListScreen}
       options={{
         tabBarIcon: tabIcon("book-outline")
+      }}
+    />
+    <Tab.Screen
+      name="Kiblat"
+      component={KiblatScreen}
+      options={{
+        tabBarIcon: tabIcon("navigate-outline")
       }}
     />
   </Tab.Navigator>
@@ -123,12 +138,15 @@ const Navigation = () => {
         <Stack.Screen
           name="SurahDetail"
           component={SurahDetailScreen}
-          options={{ title: "Pembaca Mushaf", headerLargeTitle: true }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen name="JuzList" component={JuzListScreen} options={{ title: "Juz" }} />
         <Stack.Screen name="Search" component={SearchScreen} options={{ title: "Pencarian" }} />
         <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Pengaturan" }} />
         <Stack.Screen name="PrayerSchedule" component={ShalatScreen} options={{ title: "Jadwal Sholat" }} />
+        <Stack.Screen name="Tajwid" component={TajwidScreen} options={{ title: "Panduan Tajwid" }} />
+        <Stack.Screen name="Tafsir" component={TafsirScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="DoaList" component={DoaListScreen} options={{ title: "Kumpulan Doa" }} />
         <Stack.Screen name="Features" children={() => <PlaceholderScreen title="Fitur" />} options={{ title: "Fitur" }} />
       </Stack.Navigator>
     </NavigationContainer>
