@@ -1,3 +1,4 @@
+import ChatbotScreen from "@/screens/ChatbotScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
 import DoaListScreen from "@/screens/DoaListScreen";
 import JuzListScreen from "@/screens/JuzListScreen";
@@ -57,7 +58,7 @@ const Tabs = () => (
       tabBarStyle: {
         paddingBottom: 6,
         paddingTop: 6,
-        height: 40,
+        height: 60,
         backgroundColor: lightColors.card,
         borderTopColor: lightColors.border
       }
@@ -67,6 +68,7 @@ const Tabs = () => (
       name="Beranda"
       component={DashboardScreen}
       options={{
+        tabBarLabel: "Beranda",
         tabBarIcon: tabIcon("home-outline")
       }}
     />
@@ -74,13 +76,23 @@ const Tabs = () => (
       name="Alquran"
       component={SurahListScreen}
       options={{
+        tabBarLabel: "Al-Quran",
         tabBarIcon: tabIcon("book-outline")
+      }}
+    />
+    <Tab.Screen
+      name="UstadzAI"
+      component={ChatbotScreen}
+      options={{
+        tabBarLabel: "Ustadz AI",
+        tabBarIcon: tabIcon("chatbubble-ellipses-outline")
       }}
     />
     <Tab.Screen
       name="Kiblat"
       component={KiblatScreen}
       options={{
+        tabBarLabel: "Kiblat",
         tabBarIcon: tabIcon("navigate-outline")
       }}
     />

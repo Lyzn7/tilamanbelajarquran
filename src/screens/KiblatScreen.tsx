@@ -9,6 +9,8 @@ import {
     ActivityIndicator,
     Animated,
     Dimensions,
+    Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     View,
@@ -26,6 +28,7 @@ const KiblatScreen: React.FC = () => {
     const [qiblaBearing, setQiblaBearing] = useState<number | null>(null);
     const [heading, setHeading] = useState<number>(0);
     const [isReady, setIsReady] = useState(false);
+    const [offset, setOffset] = useState(0); // koreksi manual sensor gyro (derajat)
 
     useEffect(() => {
         let sub: ReturnType<typeof Magnetometer.addListener> | undefined;
@@ -58,11 +61,8 @@ const KiblatScreen: React.FC = () => {
                 Magnetometer.setUpdateInterval(50);
                 sub = Magnetometer.addListener((data) => {
                     let angle = Math.atan2(data.y, data.x) * (180 / Math.PI);
-                    // Adjust for 0=North standard instead of usual coordinate system.
                     angle = angle - 90;
-                    if (angle < 0) {
-                        angle = angle + 360;
-                    }
+                    if (angle < 0) angle = angle + 360;
                     setHeading(angle);
                 });
 
@@ -73,21 +73,20 @@ const KiblatScreen: React.FC = () => {
         };
 
         setup();
-
-        return () => {
-            if (sub) {
-                sub.remove();
-            }
-        };
+        return () => { if (sub) sub.remove(); };
     }, []);
 
-    // Is pointing roughly at Qibla (tolerance of +/- 5 degrees)
+    // Heading setelah koreksi offset
+    const adjustedHeading = (heading + offset + 360) % 360;
+
     const isFacingQibla = useMemo(() => {
         if (qiblaBearing === null) return false;
-        const diff = Math.abs(heading - qiblaBearing);
-        // account for 359 -> 0 wraparound
+        const diff = Math.abs(adjustedHeading - qiblaBearing);
         return diff <= 5 || diff >= 355;
-    }, [heading, qiblaBearing]);
+    }, [adjustedHeading, qiblaBearing]);
+
+    const changeOffset = (delta: number) =>
+        setOffset((prev) => Math.round((prev + delta + 360) % 360));
 
     if (locationError) {
         return (
@@ -113,86 +112,137 @@ const KiblatScreen: React.FC = () => {
         );
     }
 
-    // Calculate rotation. Note: React Native transforms need strings like "45deg"
-    // The compass needs to rotate opposite to the heading to keep North pointing Up.
-    const compassRotation = `${360 - heading}deg`;
-    // The Qibla indicator is fixed relative to the compass background
+    const compassRotation = `${360 - adjustedHeading}deg`;
     const qiblaPointerRotation = `${qiblaBearing}deg`;
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["bottom", "left", "right"]}>
-            <View style={styles.header}>
-                <Text style={[styles.title, { color: colors.text }]}>Kompas Kiblat</Text>
-                <Text style={[styles.subtitle, { color: colors.muted }]}>
-                    Putar perangkat Anda hingga tanda panah sejajar dengan ikon Ka'bah.
-                </Text>
-            </View>
+            <ScrollView contentContainerStyle={{ flexGrow: 1 }} showsVerticalScrollIndicator={false}>
+                <View style={styles.header}>
+                    <Text style={[styles.title, { color: colors.text }]}>Kompas Kiblat</Text>
+                    <Text style={[styles.subtitle, { color: colors.muted }]}>
+                        Putar perangkat Anda hingga tanda panah sejajar dengan ikon Ka'bah.
+                    </Text>
+                </View>
 
-            <View style={styles.compassWrapper}>
-                <View
-                    style={[
-                        styles.outerRing,
-                        {
-                            borderColor: isFacingQibla ? colors.accent : colors.border,
-                            backgroundColor: isFacingQibla ? colors.accent + "1A" : colors.card,
-                        },
-                    ]}
-                >
-                    {/* Compass Dial Rotating */}
-                    <Animated.View
-                        style={[
-                            styles.compassBase,
-                            { transform: [{ rotate: compassRotation }] },
-                        ]}
-                    >
-                        {/* Cardinal points */}
-                        <Text style={[styles.cardinal, styles.north, { color: colors.primary }]}>U</Text>
-                        <Text style={[styles.cardinal, styles.east, { color: colors.text }]}>T</Text>
-                        <Text style={[styles.cardinal, styles.south, { color: colors.text }]}>S</Text>
-                        <Text style={[styles.cardinal, styles.west, { color: colors.text }]}>B</Text>
-
-                        {/* Qibla Indicator: A line pointing from the center (Kaabah) to the bearing */}
-                        <View
-                            style={[
-                                styles.qiblaIndicatorContainer,
-                                { transform: [{ rotate: qiblaPointerRotation }] },
-                            ]}
-                        >
-                            <Ionicons name="caret-up" size={32} color={colors.accent} style={{ marginTop: -15, zIndex: 11 }} />
-                            <View style={[styles.qiblaLine, { backgroundColor: colors.accent }]} />
-                        </View>
-
-                        {/* Kaabah icon strictly in the center */}
-                        <View style={styles.centerIconContainer}>
-                            <Text style={styles.kaabahIcon}>🕋</Text>
-                        </View>
-                    </Animated.View>
-
-                    {/* Static Device Pointer Overlay (Always points UP to show where phone is facing) */}
-                    <View style={styles.devicePointer}>
-                        <Ionicons name="chevron-up" size={48} color={isFacingQibla ? colors.accent : colors.primary} />
+                {/* Disclaimer akurasi */}
+                <View style={[styles.disclaimer, { backgroundColor: "#FFF8E1", borderColor: "#FFC107" }]}>
+                    <Ionicons name="warning-outline" size={16} color="#F59E0B" style={{ marginTop: 1 }} />
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.disclaimerTitle}>⚠️ Perhatian Akurasi Sensor</Text>
+                        <Text style={styles.disclaimerText}>
+                            {"• Sensor gyro & GPS HP terkadang tidak akurat.\n"}
+                            {"• Kalibrasi dulu: pastikan "}
+                            <Text style={{ fontWeight: "800" }}>huruf U (Utara)</Text>
+                            {" pada kompas benar-benar menghadap utara sesuai Google Maps.\n"}
+                            {"• Gunakan tombol Koreksi Sensor di bawah jika kompas miring."}
+                        </Text>
                     </View>
                 </View>
 
-                <View style={styles.infoBox}>
-                    <Text style={[styles.infoLabel, { color: colors.muted }]}>Sudut Kiblat</Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>
-                        {Math.round(qiblaBearing)}°
-                    </Text>
-                </View>
-                <View style={styles.infoBox}>
-                    <Text style={[styles.infoLabel, { color: colors.muted }]}>Arah HP Anda</Text>
-                    <Text style={[styles.infoValue, { color: isFacingQibla ? colors.accent : colors.text }]}>
-                        {Math.round(heading)}°
-                    </Text>
-                </View>
-            </View>
+                <View style={styles.compassWrapper}>
+                    <View
+                        style={[
+                            styles.outerRing,
+                            {
+                                borderColor: isFacingQibla ? colors.accent : colors.border,
+                                backgroundColor: isFacingQibla ? colors.accent + "1A" : colors.card,
+                            },
+                        ]}
+                    >
+                        <Animated.View
+                            style={[
+                                styles.compassBase,
+                                { transform: [{ rotate: compassRotation }] },
+                            ]}
+                        >
+                            <Text style={[styles.cardinal, styles.north, { color: colors.primary }]}>U</Text>
+                            <Text style={[styles.cardinal, styles.east, { color: colors.text }]}>T</Text>
+                            <Text style={[styles.cardinal, styles.south, { color: colors.text }]}>S</Text>
+                            <Text style={[styles.cardinal, styles.west, { color: colors.text }]}>B</Text>
 
-            {isFacingQibla && (
-                <View style={[styles.successBanner, { backgroundColor: colors.accent }]}>
-                    <Text style={styles.successText}>Arah Kiblat Sudah Tepat!</Text>
+                            <View
+                                style={[
+                                    styles.qiblaIndicatorContainer,
+                                    { transform: [{ rotate: qiblaPointerRotation }] },
+                                ]}
+                            >
+                                <Ionicons name="caret-up" size={32} color={colors.accent} style={{ marginTop: -15, zIndex: 11 }} />
+                                <View style={[styles.qiblaLine, { backgroundColor: colors.accent }]} />
+                            </View>
+
+                            <View style={styles.centerIconContainer}>
+                                <Text style={styles.kaabahIcon}>🕋</Text>
+                            </View>
+                        </Animated.View>
+
+                        <View style={styles.devicePointer}>
+                            <Ionicons name="chevron-up" size={48} color={isFacingQibla ? colors.accent : colors.primary} />
+                        </View>
+                    </View>
+
+                    {/* Info row */}
+                    <View style={styles.infoRow}>
+                        <View style={styles.infoBox}>
+                            <Text style={[styles.infoLabel, { color: colors.muted }]}>Sudut Kiblat</Text>
+                            <Text style={[styles.infoValue, { color: colors.text }]}>{Math.round(qiblaBearing)}°</Text>
+                        </View>
+                        <View style={styles.infoBox}>
+                            <Text style={[styles.infoLabel, { color: colors.muted }]}>Arah HP</Text>
+                            <Text style={[styles.infoValue, { color: isFacingQibla ? colors.accent : colors.text }]}>
+                                {Math.round(adjustedHeading)}°
+                            </Text>
+                        </View>
+                    </View>
                 </View>
-            )}
+
+                {/* Offset / Koreksi Manual */}
+                <View style={[styles.offsetCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Text style={[styles.offsetTitle, { color: colors.text }]}>🔧 Koreksi Sensor</Text>
+                    <Text style={[styles.offsetSub, { color: colors.muted }]}>
+                        Geser kompas jika arah tidak sesuai kenyataan
+                    </Text>
+                    <View style={styles.offsetRow}>
+                        {([-45, -5, -1] as const).map((d) => (
+                            <Pressable
+                                key={d}
+                                style={[styles.offsetBtn, { borderColor: colors.border, backgroundColor: colors.badge }]}
+                                onPress={() => changeOffset(d)}
+                            >
+                                <Text style={[styles.offsetBtnText, { color: colors.text }]}>{d}°</Text>
+                            </Pressable>
+                        ))}
+                        <View style={[styles.offsetCurrent, { borderColor: colors.primary }]}>
+                            <Text style={[styles.offsetCurrentText, { color: colors.primary }]}>
+                                {offset >= 0 ? `+${offset}` : offset}°
+                            </Text>
+                        </View>
+                        {([1, 5, 45] as const).map((d) => (
+                            <Pressable
+                                key={d}
+                                style={[styles.offsetBtn, { borderColor: colors.border, backgroundColor: colors.badge }]}
+                                onPress={() => changeOffset(d)}
+                            >
+                                <Text style={[styles.offsetBtnText, { color: colors.text }]}>+{d}°</Text>
+                            </Pressable>
+                        ))}
+                    </View>
+                    {offset !== 0 && (
+                        <Pressable onPress={() => setOffset(0)} style={styles.resetBtn}>
+                            <Ionicons name="refresh" size={14} color={colors.muted} />
+                            <Text style={[styles.resetText, { color: colors.muted }]}>Reset koreksi</Text>
+                        </Pressable>
+                    )}
+                </View>
+
+                {isFacingQibla && (
+                    <View style={[styles.successBanner, { backgroundColor: colors.accent }]}>
+                        <Text style={styles.successText}>✅ Arah Kiblat Sudah Tepat!</Text>
+                    </View>
+                )}
+
+                <View style={{ height: 24 }} />
+            </ScrollView>
         </SafeAreaView>
     );
 };
@@ -202,10 +252,21 @@ const styles = StyleSheet.create({
     centerBox: { flex: 1, justifyContent: "center", alignItems: "center", padding: 24 },
     errorText: { textAlign: "center", fontSize: 16, lineHeight: 24 },
     loadingText: { marginTop: 16, fontSize: 14 },
-    header: { padding: 20, paddingTop: 30, alignItems: "center" },
-    title: { fontSize: 26, fontWeight: "800", marginBottom: 8 },
-    subtitle: { fontSize: 14, textAlign: "center", lineHeight: 22 },
-    compassWrapper: { flex: 1, alignItems: "center", justifyContent: "center" },
+    header: { padding: 20, paddingTop: 16, alignItems: "center" },
+    title: { fontSize: 24, fontWeight: "800", marginBottom: 6 },
+    subtitle: { fontSize: 13, textAlign: "center", lineHeight: 20 },
+    disclaimer: {
+        marginHorizontal: 16,
+        marginBottom: 12,
+        borderRadius: 12,
+        borderWidth: 1,
+        padding: 12,
+        flexDirection: "row",
+        gap: 8,
+    },
+    disclaimerTitle: { fontSize: 13, fontWeight: "800", color: "#B45309", marginBottom: 4 },
+    disclaimerText: { fontSize: 12, color: "#78350F", lineHeight: 18 },
+    compassWrapper: { alignItems: "center", paddingBottom: 8 },
     outerRing: {
         width: COMPASS_SIZE,
         height: COMPASS_SIZE,
@@ -249,26 +310,50 @@ const styles = StyleSheet.create({
         zIndex: 10,
     },
     kaabahIcon: { fontSize: 32 },
-    devicePointer: {
-        position: "absolute",
-        top: -35,
+    devicePointer: { position: "absolute", top: -35, alignItems: "center" },
+    infoRow: { flexDirection: "row", gap: 32, marginTop: 16 },
+    infoBox: { alignItems: "center" },
+    infoLabel: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1 },
+    infoValue: { fontSize: 26, fontWeight: "900", marginTop: 2 },
+    offsetCard: {
+        marginHorizontal: 16,
+        marginTop: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+        padding: 14,
+    },
+    offsetTitle: { fontSize: 15, fontWeight: "800", marginBottom: 2 },
+    offsetSub: { fontSize: 12, marginBottom: 10 },
+    offsetRow: { flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap", justifyContent: "center" },
+    offsetBtn: {
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        borderRadius: 8,
+        borderWidth: 1,
+        minWidth: 36,
         alignItems: "center",
     },
-    infoBox: { marginTop: 20, alignItems: "center" },
-    infoLabel: { fontSize: 14, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1 },
-    infoValue: { fontSize: 28, fontWeight: "900", marginTop: 4 },
+    offsetBtnText: { fontSize: 12, fontWeight: "700" },
+    offsetCurrent: {
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 8,
+        borderWidth: 2,
+        minWidth: 48,
+        alignItems: "center",
+    },
+    offsetCurrentText: { fontSize: 13, fontWeight: "900" },
+    resetBtn: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 8, alignSelf: "center" },
+    resetText: { fontSize: 12 },
     successBanner: {
-        position: "absolute",
-        bottom: 40,
         alignSelf: "center",
+        marginTop: 12,
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 30,
-        elevation: 10,
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
+        elevation: 4,
     },
-    successText: { color: "white", fontWeight: "800", fontSize: 16, letterSpacing: 0.5 },
+    successText: { color: "white", fontWeight: "800", fontSize: 15 },
 });
 
 export default KiblatScreen;
