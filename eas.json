@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "version": ">= 18.3.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "autoIncrement": true,
+      "ios": {
+        "scheme": "Release",
+        "buildType": "app-store"
+      },
+      "android": {
+        "buildType": "app-bundle",
+        "gradle": {
+          "kotlinVersion": "1.9.20",
+          "minSdkVersion": 29,
+          "targetSdkVersion": 34
+        }
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

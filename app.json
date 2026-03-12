@@ -13,11 +13,10 @@
     "updates": {
       "fallbackToCacheTimeout": 0
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tilamanbelajarquran.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -25,17 +24,34 @@
         "backgroundColor": "#0f172a"
       },
       "package": "com.tilamanbelajarquran.app",
-      "softwareKeyboardLayoutMode": "pan"
+      "softwareKeyboardLayoutMode": "pan",
+      "useNextNotificationFormat": true,
+      "jsEngine": "hermes"
     },
     "web": {
       "bundler": "metro"
     },
     "plugins": [
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "buildFeatures": {
+              "buildConfig": true
+            },
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "minSdkVersion": 29,
+            "targetSdkVersion": 34,
+            "compileSdkVersion": 34
+          }
+        }
+      ]
     ],
     "extra": {
       "eas": {
-        "projectId": "tilamanbelajarquran-local"
+        "projectId": "b11e2e69-7db2-4e98-9b5f-b418ee830d0e"
       }
     }
   }
