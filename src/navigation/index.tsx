@@ -2,7 +2,7 @@ import ChatbotScreen from "@/screens/ChatbotScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
 import DoaListScreen from "@/screens/DoaListScreen";
 import JuzListScreen from "@/screens/JuzListScreen";
-import KiblatScreen from "@/screens/KiblatScreen";
+
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import PlaceholderScreen from "@/screens/PlaceholderScreen";
 import SearchScreen from "@/screens/SearchScreen";
@@ -33,7 +33,7 @@ export type RootStackParamList = {
   PrayerSchedule: undefined;
   Features: undefined;
   Tajwid: undefined;
-  Kiblat: undefined;
+
   DoaList: undefined;
   Tafsir: { nomor: number };
 };
@@ -88,14 +88,7 @@ const Tabs = () => (
         tabBarIcon: tabIcon("chatbubble-ellipses-outline")
       }}
     />
-    <Tab.Screen
-      name="Kiblat"
-      component={KiblatScreen}
-      options={{
-        tabBarLabel: "Kiblat",
-        tabBarIcon: tabIcon("navigate-outline")
-      }}
-    />
+
   </Tab.Navigator>
 );
 

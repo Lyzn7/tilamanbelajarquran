@@ -25,14 +25,12 @@
       },
       "package": "com.tilamanbelajarquran.app",
       "softwareKeyboardLayoutMode": "pan",
-      "useNextNotificationFormat": true,
       "jsEngine": "hermes"
     },
     "web": {
       "bundler": "metro"
     },
     "plugins": [
-      "expo-notifications",
       [
         "expo-build-properties",
         {
@@ -43,11 +41,12 @@
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "minSdkVersion": 29,
-            "targetSdkVersion": 34,
-            "compileSdkVersion": 34
+            "targetSdkVersion": 35,
+            "compileSdkVersion": 35
           }
         }
-      ]
+      ],
+      "./plugins/withSplitApks.js"
     ],
     "extra": {
       "eas": {

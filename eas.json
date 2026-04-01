@@ -9,21 +9,18 @@
       "distribution": "internal"
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
       "autoIncrement": true,
       "ios": {
-        "scheme": "Release",
-        "buildType": "app-store"
+        "scheme": "Release"
       },
       "android": {
-        "buildType": "app-bundle",
-        "gradle": {
-          "kotlinVersion": "1.9.20",
-          "minSdkVersion": 29,
-          "targetSdkVersion": 34
-        }
+        "buildType": "app-bundle"
       }
     }
   },

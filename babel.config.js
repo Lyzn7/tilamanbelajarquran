@@ -1,5 +1,4 @@
 module.exports = function (api) {
-  api.cache(true);
   const isProd = api.env("production");
 
   return {
@@ -25,8 +24,6 @@ module.exports = function (api) {
         },
       ],
       // Dead code elimination
-      isProd && "@babel/plugin-transform-block-scoping",
-      isProd && "@babel/plugin-proposal-logical-assignment-operators",
       // Optimize conditional imports
       isProd && "@babel/plugin-transform-runtime",
     ].filter(Boolean),

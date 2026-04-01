@@ -1,27 +1,27 @@
+import { getImsakKabKota, getImsakProvinsi, getImsakiyah, getShalatSchedule } from "@/api/equran";
+import { queryKeys } from "@/api/queryKeys";
+import SelectField from "@/components/SelectField";
+import { useScheduleLocation } from "@/hooks/useScheduleLocation";
+import { useSettings } from "@/store/SettingsProvider";
+import { darkColors, lightColors } from "@/theme";
+import { ImsakDay, ShalatDay } from "@/types/api";
+import { buildEventsFromImsak, buildEventsFromShalat, formatHMS, nextEvent } from "@/utils/schedule";
+import { useQuery } from "@tanstack/react-query";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Dimensions,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
-  View,
-  Pressable,
-  Dimensions
+  View
 } from "react-native";
-import { useQuery } from "@tanstack/react-query";
-import { getImsakKabKota, getImsakProvinsi, getImsakiyah, getShalatSchedule } from "@/api/equran";
-import { queryKeys } from "@/api/queryKeys";
-import SelectField from "@/components/SelectField";
-import { useSettings } from "@/store/SettingsProvider";
-import { useScheduleLocation } from "@/hooks/useScheduleLocation";
-import { lightColors, darkColors } from "@/theme";
-import { ImsakDay, ShalatDay } from "@/types/api";
-import { buildEventsFromImsak, buildEventsFromShalat, formatHMS, nextEvent } from "@/utils/schedule";
-import { scheduleAlarmNotifications } from "@/notifications";
+
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import Svg, { Circle } from "react-native-svg";
-import { Ionicons } from "@expo/vector-icons";
 
 const startRamadan = new Date("2026-02-18T00:00:00");
 const dayDiff = (from: Date, to: Date) => Math.floor((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
@@ -101,11 +101,11 @@ const ImsakiyahScreen: React.FC = () => {
   const shalatNextMonthQuery = useQuery({
     queryKey: provinsi && kabkota
       ? queryKeys.shalatSchedule(
-          normalizedProv,
-          normalizedKab,
-          tomorrow.getMonth() + 1,
-          tomorrow.getFullYear()
-        )
+        normalizedProv,
+        normalizedKab,
+        tomorrow.getMonth() + 1,
+        tomorrow.getFullYear()
+      )
       : ["shalat", "none", "next"],
     queryFn: () =>
       getShalatSchedule(normalizedProv || "", normalizedKab || "", tomorrow.getMonth() + 1, tomorrow.getFullYear()),
@@ -189,55 +189,6 @@ const ImsakiyahScreen: React.FC = () => {
     return () => clearInterval(timer);
   }, [activeScheduleToday, activeScheduleTomorrow, userStart]);
 
-  useEffect(() => {
-    const buildEvents = (sch: ImsakDay | ShalatDay | null) => {
-      if (!sch) return [];
-      if ("tanggal" in sch) {
-        const date = new Date(userStart.getTime() + (sch.tanggal - 1) * 24 * 3600 * 1000);
-        return buildEventsFromImsak(date, sch as ImsakDay);
-      }
-      return buildEventsFromShalat(sch as ShalatDay);
-    };
-
-    const todayEvents = buildEvents(activeScheduleToday);
-    const tomorrowEvents = buildEvents(activeScheduleTomorrow);
-
-    const imsakToday = todayEvents.find((e) => e.label === "Imsak");
-    const maghribToday = todayEvents.find((e) => e.label === "Maghrib");
-    const imsakNext = tomorrowEvents.find((e) => e.label === "Imsak");
-
-    const pickImsak =
-      imsakToday && imsakToday.time.getTime() > Date.now()
-        ? imsakToday.time
-        : imsakNext && imsakNext.time.getTime() > Date.now()
-          ? imsakNext.time
-          : null;
-
-    const pickMaghrib =
-      maghribToday && maghribToday.time.getTime() > Date.now()
-        ? maghribToday.time
-        : null;
-
-    const wantsAlarm = settings.imsakAlarmEnabled || settings.maghribAlarmEnabled;
-    if (!wantsAlarm) return;
-
-    scheduleAlarmNotifications({
-      imsakDate: pickImsak || undefined,
-      maghribDate: pickMaghrib || undefined,
-      imsakEnabled: settings.imsakAlarmEnabled,
-      maghribEnabled: settings.maghribAlarmEnabled,
-      imsakOffsetMinutes: settings.imsakOffsetMinutes,
-      maghribOffsetMinutes: settings.maghribOffsetMinutes
-    });
-  }, [
-    activeScheduleToday,
-    activeScheduleTomorrow,
-    settings.imsakAlarmEnabled,
-    settings.maghribAlarmEnabled,
-    settings.imsakOffsetMinutes,
-    settings.maghribOffsetMinutes,
-    userStart
-  ]);
 
   const eventsToday = useMemo(() => {
     if (!activeScheduleToday) return [];
