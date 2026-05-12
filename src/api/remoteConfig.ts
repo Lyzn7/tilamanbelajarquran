@@ -13,6 +13,7 @@ const REMOTE_CONFIG_URL =
 const FALLBACK_FEATURES: FeatureConfig[] = [
   { key: "doa", label: "Doa Harian", icon: "book", enabled: true, route: "DoaList" },
   { key: "tajwid", label: "Tajwid", icon: "library-outline", enabled: true, route: "Tajwid" },
+  { key: "kiblat", label: "Kiblat", icon: "compass-outline", enabled: true, route: "Kiblat" },
   { key: "tasbih", label: "Tasbih", icon: "ellipse-outline", enabled: false }
 ];
 
@@ -37,8 +38,9 @@ export const getFeatureConfig = async (): Promise<FeatureConfig[]> => {
       features[doaIndex] = { ...features[doaIndex], key: "doa", label: "Doa & Dzikir", icon: "book", route: "DoaList" };
     }
 
-    // Completely remove Kiblat from any fetched JSON response to fulfill user request
-    features = features.filter((f) => f.key !== "kiblat");
+    if (!features.some((f) => f.key === "kiblat")) {
+      features.splice(2, 0, { key: "kiblat", label: "Kiblat", icon: "compass-outline", enabled: true, route: "Kiblat" });
+    }
 
     return features;
   } catch (err) {
@@ -48,4 +50,3 @@ export const getFeatureConfig = async (): Promise<FeatureConfig[]> => {
 };
 
 export const getFallbackFeatures = () => FALLBACK_FEATURES;
-

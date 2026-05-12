@@ -18,6 +18,11 @@ export const getApiConfig = () => {
       extra?.baseUrl ||
       process.env.EXPO_PUBLIC_BASE_URL ||
       "https://equran.id/api/v2",
+    admobRewardedAdUnitId:
+      extra?.admobRewardedAdUnitId ||
+      process.env.EXPO_PUBLIC_ADMOB_REWARDED_ID ||
+      process.env.EXPO_PUBLIC_ADMOD_REWARDED_ID ||
+      "ca-app-pub-3940256099942544/5224354917",
   };
 };
 

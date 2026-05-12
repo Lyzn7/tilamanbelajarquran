@@ -2,6 +2,7 @@ import ChatbotScreen from "@/screens/ChatbotScreen";
 import DashboardScreen from "@/screens/DashboardScreen";
 import DoaListScreen from "@/screens/DoaListScreen";
 import JuzListScreen from "@/screens/JuzListScreen";
+import KiblatScreen from "@/screens/KiblatScreen";
 
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import PlaceholderScreen from "@/screens/PlaceholderScreen";
@@ -15,6 +16,7 @@ import TajwidScreen from "@/screens/TajwidScreen";
 import { useSettings } from "@/store/SettingsProvider";
 import { STORAGE_KEYS } from "@/store/storageKeys";
 import { darkColors, lightColors } from "@/theme";
+import type { ColorTheme } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -33,6 +35,7 @@ export type RootStackParamList = {
   PrayerSchedule: undefined;
   Features: undefined;
   Tajwid: undefined;
+  Kiblat: undefined;
 
   DoaList: undefined;
   Tafsir: { nomor: number };
@@ -49,19 +52,24 @@ const tabIcon = (name: keyof typeof Ionicons.glyphMap) => ({
   size: number;
 }) => <Ionicons name={name} color={color} size={size} />;
 
-const Tabs = () => (
+const Tabs: React.FC<{ colors: ColorTheme }> = ({ colors }) => (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
-      tabBarActiveTintColor: lightColors.primary,
-      tabBarInactiveTintColor: lightColors.muted,
+      tabBarActiveTintColor: colors.primary,
+      tabBarInactiveTintColor: colors.muted,
       tabBarStyle: {
         paddingBottom: 6,
         paddingTop: 6,
         height: 60,
-        backgroundColor: lightColors.card,
-        borderTopColor: lightColors.border
-      }
+        backgroundColor: colors.card,
+        borderTopColor: colors.border
+      },
+      tabBarLabelStyle: {
+        fontSize: 11,
+        fontWeight: "700"
+      },
+      tabBarHideOnKeyboard: true
     }}
   >
     <Tab.Screen
@@ -88,23 +96,48 @@ const Tabs = () => (
         tabBarIcon: tabIcon("chatbubble-ellipses-outline")
       }}
     />
+    <Tab.Screen
+      name="Pengaturan"
+      component={SettingsScreen}
+      options={{
+        tabBarLabel: "Pengaturan",
+        tabBarIcon: tabIcon("settings-outline")
+      }}
+    />
 
   </Tab.Navigator>
 );
 
-const navTheme = (scheme: NonNullable<ColorSchemeName>) =>
+const navTheme = (scheme: NonNullable<ColorSchemeName>, colors: ColorTheme) =>
   scheme === "dark"
     ? {
       ...DarkTheme,
-      colors: { ...DarkTheme.colors, background: darkColors.background, card: darkColors.card, text: darkColors.text }
+      colors: {
+        ...DarkTheme.colors,
+        primary: colors.primary,
+        background: colors.background,
+        card: colors.card,
+        text: colors.text,
+        border: colors.border,
+        notification: colors.accent
+      }
     }
     : {
       ...DefaultTheme,
-      colors: { ...DefaultTheme.colors, background: lightColors.background, card: lightColors.card, text: lightColors.text }
+      colors: {
+        ...DefaultTheme.colors,
+        primary: colors.primary,
+        background: colors.background,
+        card: colors.card,
+        text: colors.text,
+        border: colors.border,
+        notification: colors.accent
+      }
     };
 
 const Navigation = () => {
-  const { colorScheme } = useSettings();
+  const { colorScheme, isDark } = useSettings();
+  const colors = isDark ? darkColors : lightColors;
   const [ready, setReady] = React.useState(false);
   const [showOnboarding, setShowOnboarding] = React.useState(false);
 
@@ -123,7 +156,7 @@ const Navigation = () => {
   if (!ready) return null;
 
   return (
-    <NavigationContainer theme={navTheme(colorScheme)}>
+    <NavigationContainer theme={navTheme(colorScheme, colors)}>
       <Stack.Navigator>
         {showOnboarding ? (
           <Stack.Screen
@@ -139,7 +172,9 @@ const Navigation = () => {
             )}
           />
         ) : null}
-        <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+        <Stack.Screen name="Tabs" options={{ headerShown: false }}>
+          {() => <Tabs colors={colors} />}
+        </Stack.Screen>
         <Stack.Screen
           name="SurahDetail"
           component={SurahDetailScreen}
@@ -147,11 +182,11 @@ const Navigation = () => {
         />
         <Stack.Screen name="JuzList" component={JuzListScreen} options={{ title: "Juz" }} />
         <Stack.Screen name="Search" component={SearchScreen} options={{ title: "Pencarian" }} />
-        <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Pengaturan" }} />
         <Stack.Screen name="PrayerSchedule" component={ShalatScreen} options={{ title: "Jadwal Sholat" }} />
-        <Stack.Screen name="Tajwid" component={TajwidScreen} options={{ title: "Panduan Tajwid" }} />
+        <Stack.Screen name="Tajwid" component={TajwidScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Kiblat" component={KiblatScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Tafsir" component={TafsirScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="DoaList" component={DoaListScreen} options={{ title: "Kumpulan Doa" }} />
+        <Stack.Screen name="DoaList" component={DoaListScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Features" children={() => <PlaceholderScreen title="Fitur" />} options={{ title: "Fitur" }} />
       </Stack.Navigator>
     </NavigationContainer>

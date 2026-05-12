@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Network from "expo-network";
 import { useEffect, useState } from "react";
 import { STORAGE_KEYS } from "@/store/storageKeys";
@@ -116,7 +116,7 @@ export const useSurahDownload = (nomor: number, data?: SurahDetail) => {
       const dest = `${dir}/full.mp3`;
       const res = await FileSystem.downloadAsync(url, dest);
       files.push(dest);
-      bytes += res?.headers?.["content-length"] ? Number(res.headers["content-length"]) : res?.bytesWritten || 0;
+      bytes += res?.headers?.["content-length"] ? Number(res.headers["content-length"]) : 0;
     } else {
       for (const ayah of detail.ayat) {
         const url = ayah.audio[qari];
@@ -124,7 +124,7 @@ export const useSurahDownload = (nomor: number, data?: SurahDetail) => {
         setProgress(`Ayat ${ayah.nomorAyat}/${detail.ayat.length}`);
         const res = await FileSystem.downloadAsync(url, dest);
         files.push(dest);
-        bytes += res?.headers?.["content-length"] ? Number(res.headers["content-length"]) : res?.bytesWritten || 0;
+        bytes += res?.headers?.["content-length"] ? Number(res.headers["content-length"]) : 0;
       }
     }
     const audioEntry = {
@@ -143,7 +143,10 @@ export const useSurahDownload = (nomor: number, data?: SurahDetail) => {
     setDownloading(true);
     const dirBase = `${FileSystem.documentDirectory}surahs/${nomor}`;
     await FileSystem.deleteAsync(dirBase, { idempotent: true });
-    const nextAudio = qari && entry?.audio ? { ...entry.audio, [qari]: undefined } : undefined;
+    const nextAudio = qari && entry?.audio ? { ...entry.audio } : undefined;
+    if (qari && nextAudio) {
+      delete nextAudio[qari];
+    }
     const nextEntry: SurahDownloadEntry = {
       ...entry,
       audio: nextAudio,

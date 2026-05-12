@@ -9,10 +9,27 @@ export interface ScheduleLocation {
 
 const defaultLocation: ScheduleLocation = { provinsi: "DI Yogyakarta", kabkota: "Kabupaten Bantul" };
 const STORAGE_KEY = STORAGE_KEYS.scheduleLocation;
+const listeners = new Set<(value: ScheduleLocation) => void>();
+let currentLocation: ScheduleLocation = defaultLocation;
+let currentHasStoredLocation = false;
+
+const emitLocation = (value: ScheduleLocation) => {
+  currentLocation = value;
+  listeners.forEach((listener) => listener(value));
+};
 
 export const useScheduleLocation = (initial?: Partial<ScheduleLocation>) => {
-  const [location, setLocationState] = useState<ScheduleLocation>({ ...defaultLocation, ...initial });
+  const [location, setLocationState] = useState<ScheduleLocation>({ ...currentLocation, ...initial });
   const [hydrated, setHydrated] = useState(false);
+  const [hasStoredLocation, setHasStoredLocation] = useState(currentHasStoredLocation);
+
+  useEffect(() => {
+    const listener = (value: ScheduleLocation) => setLocationState(value);
+    listeners.add(listener);
+    return () => {
+      listeners.delete(listener);
+    };
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -20,7 +37,10 @@ export const useScheduleLocation = (initial?: Partial<ScheduleLocation>) => {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw) as ScheduleLocation;
-          setLocationState({ ...defaultLocation, ...parsed });
+          const next = { ...defaultLocation, ...parsed };
+          emitLocation(next);
+          currentHasStoredLocation = true;
+          setHasStoredLocation(true);
         }
       } catch (err) {
         console.warn("Failed to load schedule location", err);
@@ -43,6 +63,9 @@ export const useScheduleLocation = (initial?: Partial<ScheduleLocation>) => {
     setLocationState((prev) => {
       const merged = { ...prev, ...next };
       persist(merged);
+      currentHasStoredLocation = true;
+      setHasStoredLocation(true);
+      emitLocation(merged);
       return merged;
     });
   };
@@ -51,5 +74,5 @@ export const useScheduleLocation = (initial?: Partial<ScheduleLocation>) => {
     setLocation({ kabkota: null });
   };
 
-  return { location, setLocation, hydrated, resetKabKota };
+  return { location, setLocation, hydrated, hasStoredLocation, resetKabKota };
 };

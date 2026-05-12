@@ -3,7 +3,7 @@ import { apiConfig } from "@/config/env";
 import { useSettings } from "@/store/SettingsProvider";
 import { darkColors, lightColors } from "@/theme";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -16,7 +16,10 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { TestIds, useRewardedAd } from "react-native-google-mobile-ads";
 import { useChatLimit } from "../hooks/useChatLimit";
+
+const MAX_OUTPUT_TOKENS = 4096;
 
 const SYSTEM_PROMPT = `Kamu adalah asisten Islam bernama "Ustadz AI". Aturan wajib yang TIDAK BOLEH dilanggar:
 
@@ -60,7 +63,21 @@ const TypingIndicator = ({ color }: { color: string }) => {
 export default function ChatbotScreen() {
   const { isDark } = useSettings();
   const colors = isDark ? darkColors : lightColors;
-  const { remaining, canSend, increment, loaded } = useChatLimit();
+  const { remaining, canSend, increment, grantReward, loaded, rewardAmount } =
+    useChatLimit();
+  const rewardedAdUnitId = __DEV__
+    ? TestIds.REWARDED
+    : apiConfig.admobRewardedAdUnitId || TestIds.REWARDED;
+  const {
+    isLoaded: isRewardAdLoaded,
+    isEarnedReward,
+    isShowing: isRewardAdShowing,
+    error: rewardAdError,
+    load: loadRewardAd,
+    show: showRewardAd,
+  } = useRewardedAd(rewardedAdUnitId, {
+    requestNonPersonalizedAdsOnly: true,
+  });
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -72,6 +89,40 @@ export default function ChatbotScreen() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const rewardGrantedRef = useRef(false);
+
+  useEffect(() => {
+    loadRewardAd();
+  }, [loadRewardAd]);
+
+  useEffect(() => {
+    if (!isEarnedReward || rewardGrantedRef.current) return;
+    rewardGrantedRef.current = true;
+    grantReward();
+    const rewardMsg: Message = {
+      id: (Date.now() + 2).toString(),
+      role: "model",
+      text: `Reward berhasil. Anda mendapat tambahan ${rewardAmount} kesempatan bertanya hari ini.`,
+    };
+    setMessages((prev) => [...prev, rewardMsg]);
+    setTimeout(loadRewardAd, 500);
+  }, [grantReward, isEarnedReward, loadRewardAd, rewardAmount]);
+
+  const handleRewardPress = () => {
+    if (isRewardAdLoaded) {
+      rewardGrantedRef.current = false;
+      showRewardAd();
+      return;
+    }
+
+    loadRewardAd();
+    const waitMsg: Message = {
+      id: (Date.now() + 2).toString(),
+      role: "model",
+      text: "Iklan reward belum siap. Mohon tunggu sebentar lalu coba lagi.",
+    };
+    setMessages((prev) => [...prev, waitMsg]);
+  };
 
   const sendMessage = async () => {
     const text = input.trim();
@@ -83,11 +134,15 @@ export default function ChatbotScreen() {
     setIsLoading(true);
 
     // Increment limit BEFORE sending (pessimistic — mencegah spam jika error)
-    await increment();
-
     try {
       const apiKey = apiConfig.geminiKey;
       const model = apiConfig.geminiModel;
+
+      if (!apiKey) {
+        throw new Error(
+          "Gemini API key belum tersedia di build aplikasi. Pastikan EXPO_PUBLIC_GEMINI_KEY diset di environment EAS lalu build ulang.",
+        );
+      }
 
       // Bangun conversation history untuk konteks multi-turn
       const historyContents = messages
@@ -104,7 +159,7 @@ export default function ChatbotScreen() {
         contents: [...historyContents, { role: "user", parts: [{ text }] }],
         generationConfig: {
           temperature: 0.3, // rendah = lebih konsisten, kurang halu
-          maxOutputTokens: 1024,
+          maxOutputTokens: MAX_OUTPUT_TOKENS,
         },
         safetySettings: [
           {
@@ -133,15 +188,23 @@ export default function ChatbotScreen() {
         throw new Error(json?.error?.message ?? `HTTP ${res.status}`);
       }
 
-      const aiText: string =
-        json?.candidates?.[0]?.content?.parts?.[0]?.text ??
+      const candidate = json?.candidates?.[0];
+      const rawText =
+        candidate?.content?.parts
+          ?.map((part: { text?: string }) => part.text ?? "")
+          .join("") ??
         "Maaf, tidak ada respons dari server. Coba lagi.";
+      const aiText: string =
+        candidate?.finishReason === "MAX_TOKENS"
+          ? `${rawText}\n\n[Jawaban terpotong karena mencapai batas panjang respons. Silakan kirim: \"lanjutkan jawaban sebelumnya\".]`
+          : rawText;
 
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "model",
         text: aiText,
       };
+      await increment();
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
       const errMsg: Message = {
@@ -281,9 +344,52 @@ export default function ChatbotScreen() {
             ]}
           >
             <Ionicons name="time-outline" size={18} color={colors.muted} />
-            <Text style={[styles.limitReachedText, { color: colors.muted }]}>
+            <View style={styles.limitReachedCopy}>
+              <Text style={[styles.limitReachedText, { color: colors.muted }]}>
               Batas harian habis (0/5). Coba lagi besok. 🌙
-            </Text>
+              </Text>
+              <Text style={[styles.limitReachedText, { color: colors.muted }]}>
+                Atau tonton iklan untuk mendapat tambahan {rewardAmount} kesempatan.
+              </Text>
+              <Pressable
+                style={[
+                  styles.rewardBtn,
+                  {
+                    backgroundColor:
+                      isRewardAdLoaded && !isRewardAdShowing
+                        ? colors.primary
+                        : colors.badge,
+                  },
+                ]}
+                onPress={handleRewardPress}
+                disabled={isRewardAdShowing}
+              >
+                {isRewardAdShowing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons
+                      name="play-circle"
+                      size={16}
+                      color={isRewardAdLoaded ? "#fff" : colors.muted}
+                    />
+                    <Text
+                      style={[
+                        styles.rewardBtnText,
+                        { color: isRewardAdLoaded ? "#fff" : colors.muted },
+                      ]}
+                    >
+                      {isRewardAdLoaded ? "Tonton iklan" : "Memuat iklan..."}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+              {rewardAdError ? (
+                <Text style={[styles.rewardError, { color: colors.muted }]}>
+                  Iklan belum tersedia. Coba lagi beberapa saat.
+                </Text>
+              ) : null}
+            </View>
           </View>
         ) : (
           <View
@@ -418,10 +524,23 @@ const styles = StyleSheet.create({
   },
   limitReached: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 8,
     padding: 16,
     borderTopWidth: 1,
   },
+  limitReachedCopy: { flex: 1, gap: 8 },
   limitReachedText: { fontSize: 14 },
+  rewardBtn: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minHeight: 40,
+  },
+  rewardBtnText: { fontSize: 13, fontWeight: "800" },
+  rewardError: { fontSize: 12, lineHeight: 16 },
 });

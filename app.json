@@ -2,7 +2,7 @@
   "expo": {
     "name": "tilamanbelajarquran",
     "slug": "tilamanbelajarquran",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "splash": {
@@ -16,7 +16,10 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tilamanbelajarquran.app"
+      "bundleIdentifier": "com.tilamanbelajarquran.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,6 +27,15 @@
         "backgroundColor": "#0f172a"
       },
       "package": "com.tilamanbelajarquran.app",
+      "versionCode": 3,
+      "permissions": [
+        "com.google.android.gms.permission.AD_ID",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACTIVITY_RECOGNITION"
+      ],
       "softwareKeyboardLayoutMode": "pan",
       "jsEngine": "hermes"
     },
@@ -31,6 +43,13 @@
       "bundler": "metro"
     },
     "plugins": [
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
+      ],
       [
         "expo-build-properties",
         {
@@ -46,6 +65,7 @@
           }
         }
       ],
+      "./plugins/withAdiRegistration.js",
       "./plugins/withSplitApks.js"
     ],
     "extra": {

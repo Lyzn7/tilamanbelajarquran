@@ -14,11 +14,13 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { AppState, Platform } from "react-native";
+import mobileAds from "react-native-google-mobile-ads";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import Navigation from "./src/navigation";
 
 import { ReadingStateProvider } from "./src/store/ReadingStateProvider";
-import { SettingsProvider } from "./src/store/SettingsProvider";
+import { SettingsProvider, useSettings } from "./src/store/SettingsProvider";
+import { darkColors, lightColors } from "./src/theme";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -52,6 +54,22 @@ focusManager.setEventListener((handleFocus) => {
   return () => subscription.remove();
 });
 
+const AppShell = () => {
+  const { isDark } = useSettings();
+  const colors = isDark ? darkColors : lightColors;
+
+  return (
+    <ReadingStateProvider>
+      <SafeAreaProvider>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <Navigation />
+        </SafeAreaView>
+        <StatusBar style={isDark ? "light" : "dark"} backgroundColor={colors.background} />
+      </SafeAreaProvider>
+    </ReadingStateProvider>
+  );
+};
+
 const App = () => {
   const [fontsLoaded] = useFonts({
     Scheherazade_400Regular,
@@ -64,6 +82,12 @@ const App = () => {
     }
   }, [fontsLoaded]);
 
+  React.useEffect(() => {
+    if (Platform.OS !== "web") {
+      mobileAds().initialize();
+    }
+  }, []);
+
   if (!fontsLoaded) return null;
 
   return (
@@ -72,14 +96,7 @@ const App = () => {
       persistOptions={{ persister: asyncStoragePersister }}
     >
       <SettingsProvider>
-        <ReadingStateProvider>
-          <SafeAreaProvider>
-            <SafeAreaView style={{ flex: 1 }}>
-              <Navigation />
-            </SafeAreaView>
-            <StatusBar style="auto" />
-          </SafeAreaProvider>
-        </ReadingStateProvider>
+        <AppShell />
       </SettingsProvider>
     </PersistQueryClientProvider>
   );

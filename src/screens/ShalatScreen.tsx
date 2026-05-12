@@ -1,28 +1,35 @@
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  View
-} from "react-native";
-import { useQuery } from "@tanstack/react-query";
 import { getShalatKabKota, getShalatProvinsi, getShalatSchedule } from "@/api/equran";
 import { queryKeys } from "@/api/queryKeys";
 import SelectField from "@/components/SelectField";
-import { useSettings } from "@/store/SettingsProvider";
 import { useScheduleLocation } from "@/hooks/useScheduleLocation";
-import { lightColors, darkColors } from "@/theme";
-import { ShalatDay } from "@/types/api";
+import { useSettings } from "@/store/SettingsProvider";
+import { darkColors, lightColors } from "@/theme";
+import { useQuery } from "@tanstack/react-query";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 const todayLocalISO = () => {
   const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
+  return toLocalISO(now.getFullYear(), now.getMonth() + 1, now.getDate());
+};
+
+const toLocalISO = (year: number, month: number, day: number) =>
+  `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+const daysInMonth = (year: number, month: number) => new Date(year, month, 0).getDate();
+
+const firstDayOffset = (year: number, month: number) => {
+  const day = new Date(year, month - 1, 1).getDay();
+  return day === 0 ? 6 : day - 1;
 };
 
 const normalizeProvinceName = (name: string) =>
@@ -37,6 +44,22 @@ const ShalatScreen: React.FC = () => {
   const now = new Date();
   const [bulan, setBulan] = useState(now.getMonth() + 1);
   const [tahun, setTahun] = useState(now.getFullYear());
+  const [selectedDate, setSelectedDate] = useState(todayLocalISO());
+
+  const { location, setLocation, hydrated } = useScheduleLocation();
+  const { provinsi, kabkota } = location;
+  const [draftProvinsi, setDraftProvinsi] = useState<string | null>(provinsi);
+  const [draftKabkota, setDraftKabkota] = useState<string | null>(kabkota);
+  const [locationStatus, setLocationStatus] = useState<string | null>(null);
+  const normalizedProv = normalizeProvinceName(draftProvinsi || "");
+  const normalizedKab = normalizeKabName(draftKabkota || "");
+  const todayIso = todayLocalISO();
+
+  useEffect(() => {
+    if (!hydrated) return;
+    setDraftProvinsi(provinsi);
+    setDraftKabkota(kabkota);
+  }, [hydrated, provinsi, kabkota]);
 
   const adjustMonth = (delta: number) => {
     setBulan((prev) => {
@@ -54,189 +77,85 @@ const ShalatScreen: React.FC = () => {
     });
   };
 
-  const { location, setLocation, hydrated } = useScheduleLocation();
-  const { provinsi, kabkota } = location;
-  const normalizedProv = normalizeProvinceName(provinsi || "");
-  const normalizedKab = normalizeKabName(kabkota || "");
+  const hasUnsavedLocation = draftProvinsi !== provinsi || draftKabkota !== kabkota;
+
+  const saveDraftLocation = () => {
+    if (!draftProvinsi || !draftKabkota) {
+      setLocationStatus("Pilih provinsi dan kabupaten/kota terlebih dahulu.");
+      return;
+    }
+    setLocation({ provinsi: draftProvinsi, kabkota: draftKabkota });
+    setLocationStatus("Lokasi jadwal disimpan dan dipakai di Beranda.");
+  };
 
   const provQuery = useQuery({
     queryKey: queryKeys.shalatProvinsi,
     queryFn: getShalatProvinsi,
-    staleTime: 1000 * 60 * 60 * 24
+    staleTime: 1000 * 60 * 60 * 24,
   });
 
   useEffect(() => {
-    if (provQuery.data && !provinsi) {
+    if (provQuery.data && !draftProvinsi) {
       const fallback = provQuery.data.find((p) => p.includes("Yogyakarta")) || provQuery.data[0];
-      if (fallback) setLocation({ provinsi: fallback, kabkota: null });
+      if (fallback) setDraftProvinsi(fallback);
     }
-  }, [provQuery.data, provinsi, setLocation]);
+  }, [provQuery.data, draftProvinsi]);
 
   const kabQuery = useQuery({
-    queryKey: provinsi ? queryKeys.shalatKabKota(normalizedProv) : queryKeys.shalatKabKota(""),
+    queryKey: draftProvinsi ? queryKeys.shalatKabKota(normalizedProv) : queryKeys.shalatKabKota(""),
     queryFn: () => getShalatKabKota(normalizedProv || ""),
     enabled: Boolean(normalizedProv),
-    staleTime: 1000 * 60 * 60 * 12
+    staleTime: 1000 * 60 * 60 * 12,
   });
 
   useEffect(() => {
-    if (kabQuery.data && provinsi && !kabkota) {
+    if (kabQuery.data && draftProvinsi && !draftKabkota) {
       const fallback = kabQuery.data.find((k) => k.includes("Bantul")) || kabQuery.data[0];
-      if (fallback) setLocation({ kabkota: fallback });
+      if (fallback) setDraftKabkota(fallback);
     }
-  }, [kabQuery.data, provinsi, kabkota, setLocation]);
+  }, [kabQuery.data, draftProvinsi, draftKabkota]);
 
   const shalatQuery = useQuery({
     queryKey:
-      provinsi && kabkota ? queryKeys.shalatSchedule(normalizedProv, normalizedKab, bulan, tahun) : ["shalat", "none"],
+      draftProvinsi && draftKabkota
+        ? queryKeys.shalatSchedule(normalizedProv, normalizedKab, bulan, tahun)
+        : ["shalat", "none"],
     queryFn: () => getShalatSchedule(normalizedProv || "", normalizedKab || "", bulan, tahun),
     enabled: Boolean(normalizedProv && normalizedKab && hydrated),
-    staleTime: 1000 * 60 * 15
+    staleTime: 1000 * 60 * 15,
   });
 
-  const todayIso = todayLocalISO();
-  const todayCard = useMemo(
-    () => shalatQuery.data?.jadwal.find((item) => item.tanggal_lengkap === todayIso),
-    [shalatQuery.data, todayIso]
+  useEffect(() => {
+    const today = new Date();
+    const isCurrentMonth = bulan === today.getMonth() + 1 && tahun === today.getFullYear();
+    setSelectedDate(isCurrentMonth ? todayIso : toLocalISO(tahun, bulan, 1));
+  }, [bulan, tahun, todayIso]);
+
+  const calendarCells = useMemo(() => {
+    const blanks = Array.from({ length: firstDayOffset(tahun, bulan) }, () => null);
+    const days = Array.from({ length: daysInMonth(tahun, bulan) }, (_, idx) => idx + 1);
+    return [...blanks, ...days];
+  }, [bulan, tahun]);
+
+  const selectedSchedule = useMemo(
+    () => shalatQuery.data?.jadwal.find((item) => item.tanggal_lengkap === selectedDate) || null,
+    [selectedDate, shalatQuery.data],
   );
 
-  const renderCard = ({ item }: { item: ShalatDay }) => {
-    const isToday = item.tanggal_lengkap === todayIso;
-
-    const pill = (label: string, value: string, highlight?: boolean) => (
-      <View
-        style={[
-          styles.pill,
-          {
-            borderColor: colors.border,
-            backgroundColor: highlight ? colors.badge : colors.card
-          }
-        ]}
-      >
-        <Text style={{ color: colors.muted, fontSize: 12 }}>{label}</Text>
-        <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>{value}</Text>
-      </View>
-    );
-
-    return (
-      <View
-        style={[
-          styles.card,
-          {
-            borderColor: isToday ? colors.primary : colors.border,
-            backgroundColor: colors.card
-          }
-        ]}
-      >
-        <View style={styles.cardHeader}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>{item.hari}</Text>
-          <Text style={{ color: colors.muted }}>{item.tanggal_lengkap}</Text>
-        </View>
-        <View style={styles.pillRow}>
-          {pill("Imsak", item.imsak, true)}
-          {pill("Subuh", item.subuh)}
-          {pill("Terbit", item.terbit)}
-          {pill("Dhuha", item.dhuha)}
-        </View>
-        <View style={styles.pillRow}>
-          {pill("Dzuhur", item.dzuhur)}
-          {pill("Ashar", item.ashar)}
-          {pill("Maghrib", item.maghrib, true)}
-          {pill("Isya", item.isya)}
-        </View>
-        {isToday && <Text style={{ color: colors.primary, marginTop: 6, fontWeight: "700" }}>Hari ini</Text>}
-      </View>
-    );
-  };
-
-  const header = (
-    <View style={{ gap: 10, marginBottom: 6 }}>
-      <Text style={[styles.title, { color: colors.text }]}>Jadwal Shalat Bulanan</Text>
-      <Text style={{ color: colors.muted }}>
-        Tarik data jadwal shalat equran.id untuk satu bulan penuh. Pilih lokasi serta bulan/tahun untuk memuat jadwal.
-      </Text>
-      <View style={{ gap: 10 }}>
-        <SelectField
-          label="Provinsi"
-          value={provinsi}
-          options={provQuery.data || []}
-          onSelect={(val) => setLocation({ provinsi: val, kabkota: null })}
-          colors={colors}
-          loading={provQuery.isLoading}
-        />
-        <SelectField
-          label="Kabupaten/Kota"
-          value={kabkota}
-          options={kabQuery.data || []}
-          onSelect={(val) => setLocation({ kabkota: val })}
-          colors={colors}
-          disabled={!provinsi}
-          loading={kabQuery.isLoading}
-          placeholder={provinsi ? "Pilih kab/kota" : "Pilih provinsi dahulu"}
-        />
-      </View>
-      <View style={[styles.monthRow, { borderColor: colors.border }]}>
-        <Pressable style={[styles.monthBtn, { borderColor: colors.border }]} onPress={() => adjustMonth(-1)}>
-          <Text style={{ color: colors.text, fontWeight: "800" }}>‹</Text>
-        </Pressable>
-        <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>
-          {shalatQuery.data?.bulan_nama || `Bulan ${bulan}`} {tahun}
-        </Text>
-        <Pressable style={[styles.monthBtn, { borderColor: colors.border }]} onPress={() => adjustMonth(1)}>
-          <Text style={{ color: colors.text, fontWeight: "800" }}>›</Text>
-        </Pressable>
-      </View>
-      {shalatQuery.isLoading && (
-        <ActivityIndicator color={colors.primary} style={{ marginTop: 6 }} testID="shalat-loading" />
-      )}
-      {shalatQuery.error && <Text style={{ color: "red" }}>Gagal memuat: {(shalatQuery.error as Error).message}</Text>}
-
-      {todayCard && (
-        <View
-          style={[
-            styles.todayCard,
-            { borderColor: colors.primary, backgroundColor: colors.badge, shadowColor: colors.text }
-          ]}
-        >
-          <Text style={{ color: colors.primary, fontWeight: "800" }}>Jadwal Hari Ini</Text>
-          <Text style={{ color: colors.text, fontWeight: "700" }}>
-            {todayCard.hari}, {todayCard.tanggal_lengkap}
-          </Text>
-          <View style={styles.todayRow}>
-            <Text style={{ color: colors.muted }}>Imsak</Text>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>{todayCard.imsak}</Text>
-          </View>
-          <View style={styles.todayRow}>
-            <Text style={{ color: colors.muted }}>Subuh</Text>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>{todayCard.subuh}</Text>
-          </View>
-          <View style={styles.todayRow}>
-            <Text style={{ color: colors.muted }}>Dzuhur</Text>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>{todayCard.dzuhur}</Text>
-          </View>
-          <View style={styles.todayRow}>
-            <Text style={{ color: colors.muted }}>Ashar</Text>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>{todayCard.ashar}</Text>
-          </View>
-          <View style={styles.todayRow}>
-            <Text style={{ color: colors.muted }}>Maghrib</Text>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>{todayCard.maghrib}</Text>
-          </View>
-          <View style={styles.todayRow}>
-            <Text style={{ color: colors.muted }}>Isya</Text>
-            <Text style={{ color: colors.text, fontWeight: "800" }}>{todayCard.isya}</Text>
-          </View>
-        </View>
-      )}
-    </View>
-  );
+  const prayerRows = selectedSchedule
+    ? [
+        ["Subuh", selectedSchedule.subuh],
+        ["Dzuhur", selectedSchedule.dzuhur],
+        ["Ashar", selectedSchedule.ashar],
+        ["Maghrib", selectedSchedule.maghrib],
+        ["Isya", selectedSchedule.isya],
+      ]
+    : [];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <FlatList
-        data={shalatQuery.data?.jadwal || []}
-        keyExtractor={(item) => `shalat-${item.tanggal_lengkap}`}
-        contentContainerStyle={{ padding: 16, paddingBottom: 40, gap: 12 }}
+      <ScrollView
+        contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
             refreshing={shalatQuery.isRefetching}
@@ -244,38 +163,184 @@ const ShalatScreen: React.FC = () => {
             tintColor={colors.primary}
           />
         }
-        renderItem={renderCard}
-        ListHeaderComponent={header}
-        ListEmptyComponent={
-          !shalatQuery.isLoading && (
-            <Text style={{ color: colors.muted, paddingTop: 10 }}>
-              Pilih lokasi lalu tekan refresh untuk melihat jadwal shalat bulan ini.
+      >
+        <Text style={[styles.title, { color: colors.text }]}>Jadwal Shalat Bulanan</Text>
+        <Text style={{ color: colors.muted }}>
+          Pilih lokasi, bulan, lalu tap tanggal di kalender untuk melihat jadwal 5 waktu.
+        </Text>
+
+        <View style={styles.selectorGroup}>
+          <SelectField
+            label="Provinsi"
+            value={draftProvinsi}
+            options={provQuery.data || []}
+            onSelect={(val) => {
+              setDraftProvinsi(val);
+              setDraftKabkota(null);
+              setLocationStatus(null);
+            }}
+            colors={colors}
+            loading={provQuery.isLoading}
+          />
+          <SelectField
+            label="Kabupaten/Kota"
+            value={draftKabkota}
+            options={kabQuery.data || []}
+            onSelect={(val) => {
+              setDraftKabkota(val);
+              setLocationStatus(null);
+            }}
+            colors={colors}
+            disabled={!draftProvinsi}
+            loading={kabQuery.isLoading}
+            placeholder={draftProvinsi ? "Pilih kab/kota" : "Pilih provinsi dahulu"}
+          />
+          <Pressable
+            style={[
+              styles.actionBtn,
+              {
+                borderColor: colors.primary,
+                backgroundColor: draftProvinsi && draftKabkota ? colors.primary : colors.badge,
+              },
+            ]}
+            onPress={saveDraftLocation}
+          >
+            <Text
+              style={{
+                color: draftProvinsi && draftKabkota ? "#0b1224" : colors.muted,
+                fontWeight: "800",
+              }}
+            >
+              Simpan lokasi
             </Text>
-          )
-        }
-      />
+          </Pressable>
+          {hasUnsavedLocation ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>
+              Lokasi belum disimpan. Tekan Simpan lokasi agar Beranda ikut berubah.
+            </Text>
+          ) : null}
+          {locationStatus ? (
+            <Text style={{ color: colors.muted, fontSize: 12 }}>{locationStatus}</Text>
+          ) : null}
+        </View>
+
+        <View style={[styles.monthRow, { borderColor: colors.border }]}>
+          <Pressable style={[styles.monthBtn, { borderColor: colors.border }]} onPress={() => adjustMonth(-1)}>
+            <Text style={{ color: colors.text, fontWeight: "800" }}>{"<"}</Text>
+          </Pressable>
+          <Text style={{ color: colors.text, fontWeight: "800", fontSize: 16 }}>
+            {shalatQuery.data?.bulan_nama || `Bulan ${bulan}`} {tahun}
+          </Text>
+          <Pressable style={[styles.monthBtn, { borderColor: colors.border }]} onPress={() => adjustMonth(1)}>
+            <Text style={{ color: colors.text, fontWeight: "800" }}>{">"}</Text>
+          </Pressable>
+        </View>
+
+        {shalatQuery.isLoading ? (
+          <ActivityIndicator color={colors.primary} style={{ marginTop: 6 }} testID="shalat-loading" />
+        ) : null}
+        {shalatQuery.error ? (
+          <Text style={{ color: "red" }}>Gagal memuat: {(shalatQuery.error as Error).message}</Text>
+        ) : null}
+
+        <View style={[styles.calendarCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.weekRow}>
+            {["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"].map((day) => (
+              <Text key={day} style={[styles.weekText, { color: colors.muted }]}>
+                {day}
+              </Text>
+            ))}
+          </View>
+          <View style={styles.calendarGrid}>
+            {calendarCells.map((day, idx) => {
+              const iso = day ? toLocalISO(tahun, bulan, day) : null;
+              const selected = iso === selectedDate;
+              const isToday = iso === todayIso;
+              return (
+                <Pressable
+                  key={`${idx}-${day ?? "blank"}`}
+                  disabled={!day}
+                  onPress={() => iso && setSelectedDate(iso)}
+                  style={[
+                    styles.dayCell,
+                    {
+                      backgroundColor: selected ? colors.primary : isToday ? colors.badge : "transparent",
+                      borderColor: selected ? colors.primary : isToday ? colors.primary : "transparent",
+                      opacity: day ? 1 : 0,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: selected ? "#0b1224" : colors.text,
+                      fontWeight: selected || isToday ? "900" : "700",
+                    }}
+                  >
+                    {day}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+
+        {selectedSchedule ? (
+          <View
+            style={[
+              styles.scheduleCard,
+              { borderColor: colors.primary, backgroundColor: colors.card },
+            ]}
+          >
+            <Text style={{ color: colors.primary, fontWeight: "800" }}>
+              Jadwal Tanggal Terpilih
+            </Text>
+            <Text style={{ color: colors.text, fontWeight: "700" }}>
+              {selectedSchedule.hari}, {selectedSchedule.tanggal_lengkap}
+            </Text>
+            <View style={[styles.scheduleTable, { borderColor: colors.border }]}>
+              {prayerRows.map(([label, value], idx) => (
+                <View
+                  key={label}
+                  style={[
+                    styles.scheduleRow,
+                    idx < prayerRows.length - 1 && {
+                      borderBottomColor: colors.border,
+                      borderBottomWidth: 1,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: colors.muted, fontWeight: "700" }}>{label}</Text>
+                  <Text style={{ color: colors.text, fontWeight: "900" }}>{value}</Text>
+                </View>
+              ))}
+            </View>
+            {selectedSchedule.tanggal_lengkap === todayIso ? (
+              <Text style={{ color: colors.primary, fontWeight: "800" }}>Hari ini</Text>
+            ) : null}
+          </View>
+        ) : !shalatQuery.isLoading ? (
+          <Text style={{ color: colors.muted, paddingTop: 10 }}>
+            Jadwal untuk tanggal ini belum tersedia.
+          </Text>
+        ) : null}
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  content: { padding: 16, paddingBottom: 40, gap: 12 },
   title: { fontSize: 20, fontWeight: "800" },
-  card: {
+  selectorGroup: { gap: 10 },
+  actionBtn: {
+    minHeight: 40,
     borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    gap: 8
-  },
-  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  cardTitle: { fontSize: 18, fontWeight: "800" },
-  pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
     borderRadius: 10,
-    borderWidth: 1,
-    minWidth: "47%"
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    alignItems: "center",
+    justifyContent: "center",
   },
   monthRow: {
     flexDirection: "row",
@@ -283,7 +348,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     padding: 10,
     borderWidth: 1,
-    borderRadius: 10
+    borderRadius: 10,
   },
   monthBtn: {
     width: 36,
@@ -291,15 +356,53 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     alignItems: "center",
-    justifyContent: "center"
+    justifyContent: "center",
   },
-  todayCard: {
+  calendarCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 10,
+  },
+  weekRow: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
+  weekText: {
+    width: "14.2857%",
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  dayCell: {
+    width: "14.2857%",
+    aspectRatio: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  scheduleCard: {
     borderWidth: 1,
     borderRadius: 12,
     padding: 12,
-    gap: 6
+    gap: 8,
   },
-  todayRow: { flexDirection: "row", justifyContent: "space-between" }
+  scheduleTable: {
+    borderWidth: 1,
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  scheduleRow: {
+    minHeight: 44,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
 });
 
 export default ShalatScreen;

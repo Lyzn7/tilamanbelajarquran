@@ -25,6 +25,8 @@ const CalendarScreen: React.FC = () => {
   const [current, setCurrent] = useState(() => ({ year: today.getFullYear(), month: today.getMonth() }));
   const [selectedDate, setSelectedDate] = useState<Date | null>(today);
   const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+  const year = current.year;
+  const month = current.month;
 
   useEffect(() => {
     if (settings.startRamadanDate && isNaN(new Date(settings.startRamadanDate).getTime())) {
@@ -63,8 +65,6 @@ const CalendarScreen: React.FC = () => {
     return diff < 0 ? 0 : diff;
   }, [ramadanStart, today]);
 
-  const year = current.year;
-  const month = current.month;
   const totalDays = daysInMonth(year, month);
   const startDay = startOfMonth(year, month); // 0 Sunday
 

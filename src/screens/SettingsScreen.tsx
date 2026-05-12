@@ -1,9 +1,18 @@
-import React from "react";
-import { SafeAreaView, StyleSheet, Switch, Text, View, Pressable, TextInput } from "react-native";
-import { useSettings, ThemeMode } from "@/store/SettingsProvider";
-import { lightColors, darkColors } from "@/theme";
 import FontSizeSlider from "@/components/FontSizeSlider";
 import ToggleTranslation from "@/components/ToggleTranslation";
+import { ThemeMode, useSettings } from "@/store/SettingsProvider";
+import { darkColors, lightColors } from "@/theme";
+import React from "react";
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 const themeOptions: ThemeMode[] = ["system", "light", "dark"];
 
@@ -13,193 +22,148 @@ const SettingsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Tema</Text>
-        <View style={styles.row}>
-          {themeOptions.map((opt) => (
-            <Pressable
-              key={opt}
-              onPress={() => setSettings({ themeMode: opt })}
-              style={[
-                styles.pill,
-                { backgroundColor: settings.themeMode === opt ? colors.primary : colors.badge }
-              ]}
-            >
-              <Text
-                style={{
-                  color: settings.themeMode === opt ? "#0b1224" : colors.badgeText,
-                  fontWeight: "700"
-                }}
-              >
-                {opt}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <View style={styles.content}>
+          <Text style={[styles.screenTitle, { color: colors.text }]}>Pengaturan</Text>
 
-      <View style={{ paddingHorizontal: 16, gap: 12 }}>
-        <FontSizeSlider />
-        <ToggleTranslation />
-        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <View style={styles.rowBetween}>
-            <Text style={[styles.label, { color: colors.text }]}>Putar otomatis ayat berikut</Text>
-            <Switch
-              value={settings.autoPlayNext}
-              onValueChange={(v) => setSettings({ autoPlayNext: v })}
-              trackColor={{ true: colors.primary, false: colors.border }}
-            />
-          </View>
-          <View style={[styles.rowBetween, { marginTop: 12 }]}>
-            <Text style={[styles.label, { color: colors.text }]}>Ulang ayat</Text>
-            <Switch
-              value={settings.repeatAyah}
-              onValueChange={(v) => setSettings({ repeatAyah: v })}
-              trackColor={{ true: colors.primary, false: colors.border }}
-            />
-          </View>
-        </View>
-        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <Text style={[styles.title, { color: colors.text }]}>Unduhan Otomatis</Text>
-          <View style={[styles.rowBetween, { marginTop: 10 }]}>
-            <Text style={[styles.label, { color: colors.text }]}>Auto unduh teks saat buka</Text>
-            <Switch
-              value={settings.autoDownloadText}
-              onValueChange={(v) => setSettings({ autoDownloadText: v })}
-              trackColor={{ true: colors.primary, false: colors.border }}
-            />
-          </View>
-          <View style={[styles.rowBetween, { marginTop: 10 }]}>
-            <Text style={[styles.label, { color: colors.text }]}>Auto unduh audio saat buka</Text>
-            <Switch
-              value={settings.autoDownloadAudio}
-              onValueChange={(v) => setSettings({ autoDownloadAudio: v })}
-              trackColor={{ true: colors.primary, false: colors.border }}
-            />
-          </View>
-          <View style={[styles.rowBetween, { marginTop: 10 }]}>
-            <Text style={[styles.label, { color: colors.text }]}>Unduh hanya via Wi‑Fi</Text>
-            <Switch
-              value={settings.wifiOnlyDownload}
-              onValueChange={(v) => setSettings({ wifiOnlyDownload: v })}
-              trackColor={{ true: colors.primary, false: colors.border }}
-            />
-          </View>
-          <View style={styles.row} >
-            {["full", "ayat"].map((mode) => (
-              <Pressable
-                key={mode}
-                onPress={() => setSettings({ audioDownloadMode: mode as "full" | "ayat" })}
-                style={[
-                  styles.pill,
-                  { backgroundColor: settings.audioDownloadMode === mode ? colors.primary : colors.badge }
-                ]}
-              >
-                <Text
-                  style={{
-                    color: settings.audioDownloadMode === mode ? "#0b1224" : colors.badgeText,
-                    fontWeight: "700"
-                  }}
+          <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <Text style={[styles.title, { color: colors.text }]}>Tema</Text>
+            <View style={styles.row}>
+              {themeOptions.map((opt) => (
+                <Pressable
+                  key={opt}
+                  onPress={() => setSettings({ themeMode: opt })}
+                  style={[
+                    styles.pill,
+                    { backgroundColor: settings.themeMode === opt ? colors.primary : colors.badge },
+                  ]}
                 >
-                  {mode === "full" ? "Audio full" : "Audio ayat"}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
-        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <Text style={[styles.title, { color: colors.text }]}>Ramadhan & Alarm</Text>
-          <View style={{ marginTop: 10, gap: 10 }}>
-            <View>
-              <Text style={[styles.label, { color: colors.text }]}>Tanggal mulai Ramadhan (YYYY-MM-DD)</Text>
-              <TextInput
-                value={settings.startRamadanDate}
-                onChangeText={(val) => setSettings({ startRamadanDate: val.trim() })}
-                placeholder="2026-02-18"
-                placeholderTextColor={colors.muted}
-                style={[
-                  styles.input,
-                  { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }
-                ]}
-              />
-              <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4 }}>
-                Hari ke-1 Ramadhan ditetapkan pada tanggal ini.
-              </Text>
+                  <Text
+                    style={{
+                      color: settings.themeMode === opt ? "#0b1224" : colors.badgeText,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {opt}
+                  </Text>
+                </Pressable>
+              ))}
             </View>
+          </View>
+
+          <FontSizeSlider />
+          <ToggleTranslation />
+
+          <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
             <View style={styles.rowBetween}>
-              <Text style={[styles.label, { color: colors.text }]}>Alarm Imsak</Text>
+              <Text style={[styles.label, { color: colors.text }]}>Putar otomatis ayat berikut</Text>
               <Switch
-                value={settings.imsakAlarmEnabled}
-                onValueChange={(v) => setSettings({ imsakAlarmEnabled: v })}
+                value={settings.autoPlayNext}
+                onValueChange={(v) => setSettings({ autoPlayNext: v })}
                 trackColor={{ true: colors.primary, false: colors.border }}
               />
             </View>
-            <View style={styles.rowBetween}>
-              <Text style={[styles.label, { color: colors.text }]}>Offset Imsak (menit, boleh negatif)</Text>
-              <TextInput
-                value={String(settings.imsakOffsetMinutes)}
-                onChangeText={(v) => setSettings({ imsakOffsetMinutes: parseInt(v || "0", 10) || 0 })}
-                keyboardType="numeric"
-                style={[
-                  styles.numberInput,
-                  { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }
-                ]}
-              />
-            </View>
-            <View style={styles.rowBetween}>
-              <Text style={[styles.label, { color: colors.text }]}>Alarm Maghrib</Text>
+            <View style={[styles.rowBetween, { marginTop: 12 }]}>
+              <Text style={[styles.label, { color: colors.text }]}>Ulang ayat</Text>
               <Switch
-                value={settings.maghribAlarmEnabled}
-                onValueChange={(v) => setSettings({ maghribAlarmEnabled: v })}
+                value={settings.repeatAyah}
+                onValueChange={(v) => setSettings({ repeatAyah: v })}
                 trackColor={{ true: colors.primary, false: colors.border }}
               />
             </View>
-            <View style={styles.rowBetween}>
-              <Text style={[styles.label, { color: colors.text }]}>Offset Maghrib (menit, boleh negatif)</Text>
-              <TextInput
-                value={String(settings.maghribOffsetMinutes)}
-                onChangeText={(v) => setSettings({ maghribOffsetMinutes: parseInt(v || "0", 10) || 0 })}
-                keyboardType="numeric"
-                style={[
-                  styles.numberInput,
-                  { borderColor: colors.border, color: colors.text, backgroundColor: colors.card }
-                ]}
+          </View>
+
+          <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <Text style={[styles.title, { color: colors.text }]}>Unduhan Otomatis</Text>
+            <View style={[styles.rowBetween, { marginTop: 10 }]}>
+              <Text style={[styles.label, { color: colors.text }]}>Auto unduh teks saat buka</Text>
+              <Switch
+                value={settings.autoDownloadText}
+                onValueChange={(v) => setSettings({ autoDownloadText: v })}
+                trackColor={{ true: colors.primary, false: colors.border }}
               />
             </View>
-            <Text style={{ color: colors.muted, fontSize: 12 }}>
-              Alarm memakai notifikasi lokal Expo (best effort, bisa tidak se-akurat AlarmManager).
-            </Text>
+            <View style={[styles.rowBetween, { marginTop: 10 }]}>
+              <Text style={[styles.label, { color: colors.text }]}>Auto unduh audio saat buka</Text>
+              <Switch
+                value={settings.autoDownloadAudio}
+                onValueChange={(v) => setSettings({ autoDownloadAudio: v })}
+                trackColor={{ true: colors.primary, false: colors.border }}
+              />
+            </View>
+            <View style={[styles.rowBetween, { marginTop: 10 }]}>
+              <Text style={[styles.label, { color: colors.text }]}>Unduh hanya via Wi-Fi</Text>
+              <Switch
+                value={settings.wifiOnlyDownload}
+                onValueChange={(v) => setSettings({ wifiOnlyDownload: v })}
+                trackColor={{ true: colors.primary, false: colors.border }}
+              />
+            </View>
+            <View style={styles.row}>
+              {["full", "ayat"].map((mode) => (
+                <Pressable
+                  key={mode}
+                  onPress={() => setSettings({ audioDownloadMode: mode as "full" | "ayat" })}
+                  style={[
+                    styles.pill,
+                    {
+                      backgroundColor:
+                        settings.audioDownloadMode === mode ? colors.primary : colors.badge,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={{
+                      color: settings.audioDownloadMode === mode ? "#0b1224" : colors.badgeText,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {mode === "full" ? "Audio full" : "Audio ayat"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
+
         </View>
-        <View style={[styles.card, { borderColor: colors.border, backgroundColor: colors.card }]}>
-          <Text style={[styles.title, { color: colors.text }]}>Base URL API</Text>
-          <Text style={{ color: colors.muted, marginTop: 4 }}>{process.env.EXPO_PUBLIC_BASE_URL}</Text>
-        </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  scroll: { paddingTop: 12, paddingBottom: 32 },
+  content: { paddingHorizontal: 16, gap: 12 },
+  screenTitle: {
+    marginBottom: 12,
+    fontSize: 24,
+    fontWeight: "900",
+  },
   card: {
-    marginHorizontal: 16,
     marginBottom: 12,
     padding: 14,
     borderWidth: 1,
-    borderRadius: 12
+    borderRadius: 12,
   },
   title: { fontSize: 16, fontWeight: "800" },
-  row: { flexDirection: "row", gap: 8, marginTop: 10 },
+  row: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
+  rowBetween: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   pill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
-  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  label: { fontSize: 15 },
+  label: { fontSize: 15, flexShrink: 1 },
+  fieldGroup: { marginTop: 10, gap: 10 },
+  helpText: { fontSize: 12, marginTop: 4 },
   input: {
     borderWidth: 1,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    marginTop: 6
+    marginTop: 6,
   },
   numberInput: {
     borderWidth: 1,
@@ -207,8 +171,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     minWidth: 70,
-    textAlign: "right"
-  }
+    textAlign: "right",
+  },
 });
 
 export default SettingsScreen;

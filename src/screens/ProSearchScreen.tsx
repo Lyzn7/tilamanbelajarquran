@@ -135,11 +135,11 @@ const ProSearchScreen: React.FC = () => {
           );
         }}
         ListEmptyComponent={
-          !loading && (
+          !loading ? (
             <Text style={{ color: colors.muted, paddingTop: 20, textAlign: "center" }}>
               Belum ada hasil. Coba kata kunci berbeda.
             </Text>
-          )
+          ) : null
         }
       />
     </SafeAreaView>
@@ -178,6 +178,7 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 6
   },
+  cardHeader: { gap: 4 },
   metaLine: { fontSize: 12 },
   arab: { fontSize: 18, fontWeight: "700", textAlign: "left" }
 });

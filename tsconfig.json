@@ -5,12 +5,11 @@
     "jsx": "react-native",
     "strict": true,
     "noImplicitAny": false,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "types": [
-      "jest",
       "react",
       "react-native"
     ],

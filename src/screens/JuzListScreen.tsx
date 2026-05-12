@@ -10,20 +10,18 @@ const JuzListScreen: React.FC = () => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Data Juz belum tersedia</Text>
-        <Text style={{ color: colors.muted, marginTop: 6 }}>
-          Dokumentasi equran.id API v2 tidak menyediakan endpoint Juz. Halaman ini akan diaktifkan otomatis begitu
-          endpoint Juz resmi dirilis.
-        </Text>
+        <Text style={[styles.title, { color: colors.text }]}>Juz</Text>
+        <Text style={[styles.subtitle, { color: colors.muted }]}>Coming Soon</Text>
       </View>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 16 },
-  card: { borderWidth: 1, borderRadius: 12, padding: 16 },
-  title: { fontSize: 18, fontWeight: "800" }
+  container: { flex: 1, alignItems: "center", justifyContent: "center", padding: 16 },
+  card: { alignItems: "center", borderWidth: 1, borderRadius: 12, padding: 20, minWidth: 220 },
+  title: { fontSize: 20, fontWeight: "800" },
+  subtitle: { fontSize: 16, marginTop: 8 }
 });
 
 export default JuzListScreen;

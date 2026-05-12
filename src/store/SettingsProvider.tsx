@@ -54,6 +54,9 @@ const SettingsContext = createContext<SettingsContextValue | undefined>(undefine
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettingsState] = useState<SettingsState>(defaultSettings);
   const [hydrated, setHydrated] = useState(false);
+  const [systemScheme, setSystemScheme] = useState<NonNullable<ColorSchemeName>>(
+    Appearance.getColorScheme() || "light"
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -72,6 +75,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     load();
   }, []);
 
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+      setSystemScheme(colorScheme || "light");
+    });
+
+    return () => subscription.remove();
+  }, []);
+
   const persist = async (value: SettingsState) => {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(value));
@@ -88,7 +99,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     });
   };
 
-  const systemScheme = Appearance.getColorScheme() || "light";
   const themeChoice = settings.themeMode === "system" ? systemScheme : settings.themeMode;
 
   const value = useMemo<SettingsContextValue>(

@@ -16,8 +16,8 @@ interface Props {
 const SurahCard: React.FC<Props> = ({ item, onPress, lastReadAyah, downloaded, onDelete }) => {
   const { isDark } = useSettings();
   const colors = isDark ? darkColors : lightColors;
-  const cardBg = downloaded ? "#bbf7d0" : colors.card;
-  const border = downloaded ? "#22c55e" : colors.border;
+  const cardBg = downloaded ? (isDark ? "#14331F" : "#BBF7D0") : colors.card;
+  const border = downloaded ? colors.accent : colors.border;
 
   return (
     <Pressable style={[styles.card, { backgroundColor: cardBg, borderColor: border }]} onPress={onPress}>

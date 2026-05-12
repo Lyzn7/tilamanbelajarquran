@@ -33,6 +33,7 @@ import {
 } from "react-native";
 
 type ScreenRoute = RouteProp<RootStackParamList, "SurahDetail">;
+type PlayingMode = "ayah" | "full" | "backgroundFull";
 
 const qariOptions: Record<string, string> = {
   "01": "Abdullah Al-Juhany",
@@ -42,6 +43,8 @@ const qariOptions: Record<string, string> = {
   "05": "Misyari Rasyid Al-Afasi",
   "06": "Yasser Al-Dosari",
 };
+
+let detachedBackgroundSound: Audio.Sound | null = null;
 /** Komponen terpisah agar TextInput tidak kehilangan fokus saat parent re-render */
 const JumpToAyat = React.memo(
   ({
@@ -134,17 +137,23 @@ const SurahDetailScreen: React.FC = () => {
   const soundRef = useRef<Audio.Sound | null>(null);
   const playToken = useRef(0);
   const didAutoPlay = useRef(false);
+  const playingModeRef = useRef<PlayingMode | null>(null);
   // Refs to avoid stale closures in audio callbacks
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
   const [isPaused, setIsPaused] = useState(false);
   const [playingAyah, setPlayingAyah] = useState<number | null>(null);
-  const [playingMode, setPlayingMode] = useState<"ayah" | "full" | null>(null);
+  const [playingMode, setPlayingModeState] = useState<PlayingMode | null>(null);
   const [isAudioLoading, setIsAudioLoading] = useState(false);
   const [audioPosition, setAudioPosition] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
   const [qariSheet, setQariSheet] = useState(false);
+
+  const setPlayingMode = (mode: PlayingMode | null) => {
+    playingModeRef.current = mode;
+    setPlayingModeState(mode);
+  };
 
   const flatListRef = useRef<FlatList<Ayah>>(null);
   const panResponder = useRef(
@@ -188,7 +197,9 @@ const SurahDetailScreen: React.FC = () => {
 
   useEffect(() => {
     return () => {
-      unloadSound();
+      if (playingModeRef.current !== "backgroundFull") {
+        unloadSound();
+      }
     };
   }, []);
 
@@ -210,8 +221,12 @@ const SurahDetailScreen: React.FC = () => {
   }, [data]);
 
   const unloadSound = async () => {
+    const currentSound = soundRef.current ?? detachedBackgroundSound;
     try {
-      await soundRef.current?.unloadAsync();
+      await currentSound?.unloadAsync();
+      if (detachedBackgroundSound && detachedBackgroundSound === currentSound) {
+        detachedBackgroundSound = null;
+      }
     } catch {
       // ignore
     } finally {
@@ -256,7 +271,7 @@ const SurahDetailScreen: React.FC = () => {
     const token = ++playToken.current;
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
+      staysActiveInBackground: true,
     });
     const snd = new Audio.Sound();
     await snd.loadAsync({ uri: audioUrl });
@@ -349,6 +364,66 @@ const SurahDetailScreen: React.FC = () => {
       return;
     }
     await unloadSound();
+  };
+
+  const playBackgroundFullAudio = async () => {
+    if (isAudioLoading) return;
+    const currentData = dataRef.current;
+    const currentSettings = settingsRef.current;
+    if (!currentData) return;
+
+    const audioUrl = currentData.audioFull?.[currentSettings.qari];
+    if (!audioUrl) {
+      Alert.alert(
+        "Audio penuh tidak tersedia",
+        `URL audio penuh tidak tersedia untuk qari ${qariOptions[currentSettings.qari]}.`,
+      );
+      return;
+    }
+
+    setIsAudioLoading(true);
+    try {
+      await unloadSound();
+      const token = ++playToken.current;
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+      });
+
+      const snd = new Audio.Sound();
+      await snd.loadAsync({ uri: audioUrl });
+      await snd.setStatusAsync({ progressUpdateIntervalMillis: 1000 });
+      soundRef.current = snd;
+      detachedBackgroundSound = snd;
+      snd.setOnPlaybackStatusUpdate(async (status) => {
+        if (token !== playToken.current) return;
+        if (!status.isLoaded) return;
+        setAudioPosition(status.positionMillis);
+        setAudioDuration(status.durationMillis ?? 0);
+        if (status.didJustFinish) {
+          detachedBackgroundSound = null;
+          await unloadSound();
+        }
+      });
+
+      await snd.playAsync();
+      setPlayingMode("backgroundFull");
+      setPlayingAyah(null);
+      setIsPaused(false);
+      setLastRead({
+        surah: nomor,
+        ayah: 1,
+        surahName: currentData.namaLatin,
+      });
+    } catch (err) {
+      Alert.alert(
+        "Gagal memutar audio penuh",
+        (err as Error)?.message ?? String(err),
+      );
+      await unloadSound();
+    } finally {
+      setIsAudioLoading(false);
+    }
   };
 
   /** Manual: play a single ayah (tap play on a card) */
@@ -498,7 +573,10 @@ const SurahDetailScreen: React.FC = () => {
             style={[
               styles.chip,
               { borderColor: colors.border },
-              settings.autoPlayNext && styles.chipActive,
+              settings.autoPlayNext && {
+                backgroundColor: colors.badge,
+                borderColor: colors.primary,
+              },
             ]}
             onPress={() => {
               const next = !settings.autoPlayNext;
@@ -521,7 +599,10 @@ const SurahDetailScreen: React.FC = () => {
             style={[
               styles.chip,
               { borderColor: colors.border },
-              settings.repeatAyah && styles.chipActive,
+              settings.repeatAyah && {
+                backgroundColor: colors.badge,
+                borderColor: colors.primary,
+              },
             ]}
             onPress={() => {
               const next = !settings.repeatAyah;
@@ -551,6 +632,29 @@ const SurahDetailScreen: React.FC = () => {
         </View>
 
         <View style={styles.controls}>
+          <Pressable
+            onPress={playBackgroundFullAudio}
+            disabled={isAudioLoading}
+            style={[
+              styles.controlBtn,
+              styles.backgroundControlBtn,
+              {
+                borderColor: colors.primary,
+                backgroundColor: colors.badge,
+                opacity: isAudioLoading ? 0.7 : 1,
+              },
+            ]}
+          >
+            {isAudioLoading && !playingMode ? (
+              <ActivityIndicator size={16} color={colors.primary} />
+            ) : (
+              <Ionicons name="musical-notes" color={colors.primary} size={16} />
+            )}
+            <Text style={{ color: colors.primary, fontWeight: "800" }}>
+              Putar penuh latar belakang
+            </Text>
+          </Pressable>
+
           <Pressable
             onPress={playFullSurah}
             disabled={isAudioLoading}
@@ -919,6 +1023,8 @@ const SurahDetailScreen: React.FC = () => {
                 ? "Memuat audio..."
                 : playingMode === "ayah" && playingAyah
                   ? `Ayat ${playingAyah} · ${qariOptions[settings.qari]}`
+                  : playingMode === "backgroundFull"
+                    ? `Audio penuh latar belakang · ${qariOptions[settings.qari]}`
                   : `Memutar penuh · ${qariOptions[settings.qari]}`}
             </Text>
             {/* Progress bar */}
@@ -1009,6 +1115,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderWidth: 1,
     borderRadius: 10,
+  },
+  backgroundControlBtn: {
+    flexBasis: "100%",
+    justifyContent: "center",
   },
   quickRow: {
     flexDirection: "row",

@@ -27,11 +27,13 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useQuery } from "@tanstack/react-query";
+import * as Location from "expo-location";
 import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   Pressable,
+  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -47,6 +49,43 @@ const normalizeProvinceName = (name: string) =>
   name === "DI Yogyakarta" ? "D.I. Yogyakarta" : name;
 const normalizeKabName = (name: string) =>
   name === "Kabupaten Bantul" ? "Kab. Bantul" : name;
+const normalizePlaceName = (value?: string | null) =>
+  (value || "")
+    .toLowerCase()
+    .replace(/^kabupaten\s+/, "")
+    .replace(/^kab\.\s+/, "")
+    .replace(/^kota\s+/, "")
+    .replace(/^provinsi\s+/, "")
+    .replace(/\bd\.i\.\b/g, "di")
+    .replace(/\bdaerah istimewa\b/g, "di")
+    .replace(/\bdaerah khusus ibukota\b/g, "dki")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+const matchPlaceName = (options: string[], candidates: string[]) => {
+  const normalizedCandidates = candidates
+    .map(normalizePlaceName)
+    .filter(Boolean);
+  return options.find((option) => {
+    const normalizedOption = normalizePlaceName(option);
+    return normalizedCandidates.some(
+      (candidate) =>
+        normalizedOption === candidate ||
+        normalizedOption.includes(candidate) ||
+      candidate.includes(normalizedOption),
+    );
+  });
+};
+const buildLocationCandidates = (place: Location.LocationGeocodedAddress) => {
+  const cityParts = [place.subregion, place.city, place.district, place.name]
+    .filter(Boolean) as string[];
+  const provinceParts = [place.region, place.subregion, place.city]
+    .filter(Boolean) as string[];
+  return {
+    provinceCandidates: provinceParts,
+    cityCandidates: cityParts,
+    readable: cityParts[0] || provinceParts[0] || "lokasi perangkat",
+  };
+};
 const pad = (n: number) => n.toString().padStart(2, "0");
 const dayOfYear = (d: Date) => {
   const start = new Date(d.getFullYear(), 0, 0);
@@ -80,10 +119,19 @@ const DashboardScreen: React.FC = () => {
   }, []);
 
   // schedule + location
-  const { location, setLocation, hydrated } = useScheduleLocation();
+  const { location, setLocation, hydrated, hasStoredLocation } =
+    useScheduleLocation();
   const { provinsi, kabkota } = location;
   const normalizedProv = normalizeProvinceName(provinsi || "");
   const normalizedKab = normalizeKabName(kabkota || "");
+  const [autoLocationTried, setAutoLocationTried] = useState(false);
+  const [deviceLocationCandidates, setDeviceLocationCandidates] = useState<
+    string[]
+  >([]);
+  const [detectingDeviceLocation, setDetectingDeviceLocation] = useState(false);
+  const [locationAdjustMessage, setLocationAdjustMessage] = useState<
+    string | null
+  >(null);
 
   const parsedStart = settings.startRamadanDate
     ? new Date(settings.startRamadanDate)
@@ -104,6 +152,106 @@ const DashboardScreen: React.FC = () => {
     queryFn: getImsakProvinsi,
     staleTime: 1000 * 60 * 60 * 24,
   });
+  const adjustScheduleToDeviceLocation = async (markTried = false) => {
+    if (markTried) setAutoLocationTried(true);
+    if (detectingDeviceLocation) return;
+    if (!provQuery.data?.length) {
+      if (!markTried) {
+        setLocationAdjustMessage("Daftar lokasi belum siap. Coba lagi sebentar.");
+      }
+      return;
+    }
+
+    setDetectingDeviceLocation(true);
+    if (!markTried) setLocationAdjustMessage(null);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== "granted") {
+        if (!markTried) setLocationAdjustMessage("Izin lokasi ditolak.");
+        return;
+      }
+
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const places = await Location.reverseGeocodeAsync({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+      const place = places[0];
+      if (!place) {
+        if (!markTried) setLocationAdjustMessage("Lokasi perangkat tidak terbaca.");
+        return;
+      }
+
+      const { provinceCandidates, cityCandidates, readable } =
+        buildLocationCandidates(place);
+      setDeviceLocationCandidates(cityCandidates);
+
+      const directProv = matchPlaceName(provQuery.data, provinceCandidates);
+      const provinceOptions = directProv ? [directProv] : provQuery.data;
+
+      for (const provinceOption of provinceOptions) {
+        const kabOptions = await getImsakKabKota(normalizeProvinceName(provinceOption));
+        const matchedKab = matchPlaceName(kabOptions, cityCandidates);
+        if (matchedKab) {
+          setLocation({ provinsi: provinceOption, kabkota: matchedKab });
+          if (!markTried) {
+            setLocationAdjustMessage(
+              `Lokasi diubah ke ${provinceOption} - ${matchedKab}.`,
+            );
+          }
+          return;
+        }
+      }
+
+      if (directProv) {
+        const kabOptions = await getImsakKabKota(normalizeProvinceName(directProv));
+        const fallbackKab = kabOptions[0] || null;
+        setLocation({ provinsi: directProv, kabkota: fallbackKab });
+        if (!markTried) {
+          setLocationAdjustMessage(
+            fallbackKab
+              ? `Provinsi diubah ke ${directProv}. Kabupaten/kota terdekat belum cocok, memakai ${fallbackKab}.`
+              : `Provinsi diubah ke ${directProv}, tetapi kabupaten/kota belum tersedia.`,
+          );
+        }
+        return;
+      }
+
+      if (!markTried) {
+        setLocationAdjustMessage(
+          `Lokasi terdeteksi: ${readable}, tetapi belum tersedia di data jadwal.`,
+        );
+      }
+    } catch (err) {
+      console.warn("Failed to detect schedule location", err);
+      if (!markTried) {
+        setLocationAdjustMessage("Gagal menyesuaikan lokasi. Coba lagi.");
+      }
+    } finally {
+      setDetectingDeviceLocation(false);
+    }
+  };
+
+  useEffect(() => {
+    if (
+      autoLocationTried ||
+      hasStoredLocation ||
+      !hydrated ||
+      !provQuery.data?.length
+    ) {
+      return;
+    }
+    adjustScheduleToDeviceLocation(true);
+  }, [
+    autoLocationTried,
+    detectingDeviceLocation,
+    hasStoredLocation,
+    hydrated,
+    provQuery.data,
+    setLocation,
+  ]);
   useEffect(() => {
     if (provQuery.data && !provinsi) {
       const fallback =
@@ -122,6 +270,14 @@ const DashboardScreen: React.FC = () => {
     staleTime: 1000 * 60 * 60 * 12,
   });
   useEffect(() => {
+    if (deviceLocationCandidates.length && provinsi && !kabkota && kabQuery.data) {
+      const matchedKab = matchPlaceName(kabQuery.data, deviceLocationCandidates);
+      if (matchedKab) {
+        setLocation({ kabkota: matchedKab });
+        return;
+      }
+    }
+
     if (kabQuery.data && provinsi && !kabkota) {
       const fallback =
         kabQuery.data.find((k) => k.includes("Bantul")) || kabQuery.data[0];
@@ -303,6 +459,13 @@ const DashboardScreen: React.FC = () => {
         .filter((e) => prayerLabels.includes(e.label)),
     [mergedEvents],
   );
+  const todayPrayerEvents = useMemo(
+    () =>
+      activeEvents
+        .map((e) => ({ ...e, label: normalizePrayerLabel(e.label) }))
+        .filter((e) => prayerLabels.includes(e.label)),
+    [activeEvents],
+  );
 
   const upcoming = useMemo(
     () =>
@@ -419,7 +582,7 @@ const DashboardScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safe}>
       <LinearGradient
-        colors={["#E8F4FF", "#F0F7FF"]}
+        colors={isDark ? ["#101418", "#172229"] : ["#E8F4FF", "#F0F7FF"]}
         style={StyleSheet.absoluteFill}
       />
       <ScrollView contentContainerStyle={{ padding: 18, paddingBottom: 32 }}>
@@ -437,7 +600,7 @@ const DashboardScreen: React.FC = () => {
               SELAMAT DATANG KEMBALI
             </Text>
             <Text
-              style={{ color: colors.text, fontSize: 26, fontWeight: "800" }}
+              style={{ color: colors.text, fontSize: 22, fontWeight: "800" }}
             >
               Assalamu'alaikum
             </Text>
@@ -477,9 +640,34 @@ const DashboardScreen: React.FC = () => {
           <Text style={{ color: colors.muted, marginTop: 10 }}>
             {formattedDate}
           </Text>
-          <Text style={{ color: colors.muted, marginTop: 4 }}>
-            {provinsi || "DI Yogyakarta"} • {kabkota || "Kabupaten Bantul"}
-          </Text>
+          <View style={styles.locationLine}>
+            <Text style={{ color: colors.muted, flexShrink: 1 }}>
+              {provinsi || "DI Yogyakarta"} • {kabkota || "Kabupaten Bantul"}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityLabel="Sesuaikan lokasi jadwal sholat"
+            style={[
+              styles.adjustLocationBtn,
+              { borderColor: colors.border, backgroundColor: colors.card },
+            ]}
+            onPress={() => adjustScheduleToDeviceLocation(false)}
+            disabled={detectingDeviceLocation}
+          >
+            {detectingDeviceLocation ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Ionicons name="locate" size={15} color={colors.primary} />
+            )}
+            <Text style={{ color: colors.primary, fontWeight: "800", fontSize: 12 }}>
+              {detectingDeviceLocation ? "Menyesuaikan..." : "Sesuaikan lokasi"}
+            </Text>
+          </Pressable>
+          {locationAdjustMessage ? (
+            <Text style={{ color: colors.muted, marginTop: 6, fontSize: 12 }}>
+              {locationAdjustMessage}
+            </Text>
+          ) : null}
         </View>
 
         {/* Jadwal Sholat */}
@@ -504,12 +692,17 @@ const DashboardScreen: React.FC = () => {
             <Ionicons name="chevron-forward" size={16} color={colors.primary} />
           </Pressable>
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 12, paddingVertical: 12 }}
+        <View
+          style={[
+            styles.prayerTable,
+            { backgroundColor: colors.card, borderColor: colors.border },
+          ]}
         >
-          {prayerEvents.map((ev, idx) => {
+          <View style={[styles.prayerTableHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.prayerTableHeaderText, { color: colors.muted }]}>Waktu</Text>
+            <Text style={[styles.prayerTableHeaderText, { color: colors.muted }]}>Jam</Text>
+          </View>
+          {todayPrayerEvents.map((ev, idx) => {
             const selected = ev.label === countdownLabel;
             const timeTxt = ev.time.toLocaleTimeString("id-ID", {
               hour: "2-digit",
@@ -520,33 +713,40 @@ const DashboardScreen: React.FC = () => {
               <View
                 key={key}
                 style={[
-                  styles.prayerCard,
+                  styles.prayerTableRow,
                   {
-                    borderColor: selected ? colors.primary : colors.border,
+                    borderColor: selected ? colors.primary : "transparent",
                     backgroundColor: selected
-                      ? colors.card
-                      : colors.background + "CC",
+                      ? colors.primary + "18"
+                      : "transparent",
                     shadowColor: colors.primary,
-                    shadowOpacity: selected ? 0.35 : 0.1,
+                    shadowOpacity: selected ? 0.2 : 0,
                   },
                 ]}
               >
-                <Ionicons
-                  name="time-outline"
-                  size={20}
-                  color={selected ? colors.primary : colors.muted}
-                  style={{ marginBottom: 8 }}
-                />
-                <Text style={{ color: colors.text, fontWeight: "700" }}>
-                  {ev.label}
-                </Text>
-                <Text style={{ color: colors.muted, marginTop: 4 }}>
+                <View style={styles.prayerNameCell}>
+                  <View
+                    style={[
+                      styles.prayerStatusDot,
+                      { backgroundColor: selected ? colors.primary : colors.border },
+                    ]}
+                  />
+                  <Text style={{ color: selected ? colors.primary : colors.text, fontWeight: "800" }}>
+                    {ev.label}
+                  </Text>
+                  {selected ? (
+                    <View style={[styles.activeBadge, { backgroundColor: colors.primary }]}>
+                      <Text style={styles.activeBadgeText}>Aktif</Text>
+                    </View>
+                  ) : null}
+                </View>
+                <Text style={{ color: selected ? colors.primary : colors.text, fontWeight: "900" }}>
                   {timeTxt}
                 </Text>
               </View>
             );
           })}
-        </ScrollView>
+        </View>
 
         {/* Fitur Utama */}
         <View
@@ -594,11 +794,17 @@ const DashboardScreen: React.FC = () => {
             { backgroundColor: colors.card, borderColor: colors.border },
           ]}
         >
+          <View style={[styles.quoteMark, { backgroundColor: colors.badge }]}>
+            <Text style={[styles.quoteMarkText, { color: colors.primary }]}>“</Text>
+          </View>
           <Text
             style={{
               color: colors.primary,
               fontWeight: "800",
-              marginBottom: 6,
+              marginBottom: 10,
+              textAlign: "center",
+              fontSize: 12,
+              letterSpacing: 0.8,
             }}
           >
             KATA MOTIVASI HARI INI
@@ -606,17 +812,29 @@ const DashboardScreen: React.FC = () => {
           <Text
             style={{
               color: colors.text,
-              fontSize: 18,
-              lineHeight: 28,
-              marginBottom: 14,
+              fontSize: 15,
+              lineHeight: 24,
+              marginBottom: 12,
               fontStyle: "italic",
+              textAlign: "center",
+              alignSelf: "center",
+              fontWeight: "600",
+              width: "100%",
             }}
           >
             "{dailyMotivation.text}"
           </Text>
           {dailyMotivation.source && (
             <Text
-              style={{ color: colors.muted, marginBottom: 12, fontSize: 14 }}
+              style={{
+                color: colors.muted,
+                marginBottom: 6,
+                fontSize: 12,
+                textAlign: "center",
+                alignSelf: "center",
+                fontWeight: "700",
+                width: "100%",
+              }}
             >
               — {dailyMotivation.source}
             </Text>
@@ -825,14 +1043,76 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  prayerCard: {
-    width: 120,
-    borderRadius: 18,
-    padding: 14,
+  locationLine: {
+    marginTop: 4,
+    maxWidth: "90%",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  adjustLocationBtn: {
+    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
     borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    justifyContent: "center",
+  },
+  prayerTable: {
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 8,
+  },
+  prayerTableHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+  },
+  prayerTableHeaderText: {
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  prayerTableRow: {
+    minHeight: 52,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+  },
+  prayerNameCell: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+  },
+  prayerStatusDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+  },
+  activeBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  activeBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "900",
   },
   statCard: {
     flex: 1,
@@ -872,13 +1152,29 @@ const styles = StyleSheet.create({
   },
   doaCard: {
     marginTop: 8,
-    padding: 16,
+    paddingHorizontal: 18,
+    paddingTop: 18,
+    paddingBottom: 16,
     borderRadius: 18,
     borderWidth: 1,
+    alignItems: "center",
     elevation: 4,
     shadowOpacity: 0.15,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
+  },
+  quoteMark: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  quoteMarkText: {
+    fontSize: 28,
+    fontWeight: "900",
+    lineHeight: 32,
   },
   doaButton: {
     flexDirection: "row",

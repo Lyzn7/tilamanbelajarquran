@@ -139,6 +139,7 @@ const DoaListScreen: React.FC = () => {
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={["bottom", "left", "right"]}>
             <View style={[styles.header, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+                <Text style={[styles.screenTitle, { color: colors.text }]}>Kumpulan Doa</Text>
                 <View style={[styles.searchContainer, { backgroundColor: colors.background }]}>
                     <Ionicons name="search" size={20} color={colors.muted} />
                     <TextInput
@@ -192,6 +193,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
+        gap: 10,
+    },
+    screenTitle: {
+        fontSize: 22,
+        fontWeight: "800",
     },
     searchContainer: {
         flexDirection: "row",

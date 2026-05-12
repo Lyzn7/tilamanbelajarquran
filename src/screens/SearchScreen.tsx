@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useQuery } from "@tanstack/react-query";
 import { getSurahList } from "@/api/equran";
 import { queryKeys } from "@/api/queryKeys";
@@ -8,11 +9,12 @@ import { useSettings } from "@/store/SettingsProvider";
 import { lightColors, darkColors } from "@/theme";
 import { SurahSummary } from "@/types/api";
 import SurahCard from "@/components/SurahCard";
+import { RootStackParamList } from "@/navigation";
 
 const SearchScreen: React.FC = () => {
   const { isDark } = useSettings();
   const colors = isDark ? darkColors : lightColors;
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [term, setTerm] = useState("");
 
   const { data, isLoading, error } = useQuery({
@@ -57,7 +59,7 @@ const SearchScreen: React.FC = () => {
         renderItem={({ item }) => (
           <SurahCard
             item={item}
-            onPress={() => navigation.navigate("SurahDetail" as never, { nomor: item.nomor } as never)}
+            onPress={() => navigation.navigate("SurahDetail", { nomor: item.nomor })}
           />
         )}
       />

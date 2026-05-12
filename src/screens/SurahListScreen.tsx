@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, RefreshControl, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { getSurahList } from "@/api/equran";
@@ -10,11 +11,12 @@ import { useSettings } from "@/store/SettingsProvider";
 import { useReadingState } from "@/store/ReadingStateProvider";
 import { deleteDownloadByNumber, useDownloadManifest } from "@/hooks/useSurahDownload";
 import { lightColors, darkColors } from "@/theme";
+import { RootStackParamList } from "@/navigation";
 
 const SurahListScreen: React.FC = () => {
   const { isDark } = useSettings();
   const colors = isDark ? darkColors : lightColors;
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { lastRead } = useReadingState();
   const { manifest, reload } = useDownloadManifest();
   const [search, setSearch] = useState("");
@@ -53,13 +55,6 @@ const SurahListScreen: React.FC = () => {
           size={22}
           color={colors.text}
           onPress={() => navigation.navigate("JuzList" as never)}
-          style={{ marginLeft: 14 }}
-        />
-        <Ionicons
-          name="settings-outline"
-          size={22}
-          color={colors.text}
-          onPress={() => navigation.navigate("Settings" as never)}
           style={{ marginLeft: 14 }}
         />
       </View>
@@ -121,7 +116,7 @@ const SurahListScreen: React.FC = () => {
                 await reload();
                 await refetch();
             }}
-            onPress={() => navigation.navigate("SurahDetail" as never, { nomor: item.nomor } as never)}
+            onPress={() => navigation.navigate("SurahDetail", { nomor: item.nomor })}
           />
         )}
       />
